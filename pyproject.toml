@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oakensoul-loadout"
+version = "0.1.0"
+description = "Machine configuration management CLI — dotfiles, Homebrew, global packages, and health checks."
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+loadout = "loadout.cli:cli"
