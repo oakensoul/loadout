@@ -1,0 +1,1 @@
+"""macOS display profile switching."""
