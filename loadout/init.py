@@ -7,6 +7,7 @@ import socket
 from pathlib import Path
 
 from loadout import runner, ui
+from loadout.brew import brew_bundle
 from loadout.build import build_dotfiles
 from loadout.config import LoadoutConfig, save_config
 from loadout.display import generate_launch_agent_plist, is_macos
@@ -70,14 +71,13 @@ def _register_ssh_key_with_github(
         )
         return
 
-    # Authenticate gh with a token from 1Password
+    # Authenticate gh with a token from 1Password via shell pipeline
     runner.run(
-        ["op", "read", "op://Personal/GitHub Token/credential"],
-        capture=True,
-        dry_run=dry_run,
-    )
-    runner.run(
-        ["gh", "auth", "login", "--with-token"],
+        [
+            "bash",
+            "-c",
+            'op read "op://Personal/GitHub Token/credential" | gh auth login --with-token',
+        ],
         dry_run=dry_run,
     )
 
@@ -105,7 +105,8 @@ def _switch_remotes_to_ssh(
     for repo in repos:
         if not repo.exists():
             continue
-        repo_name = repo.name
+        # Strip leading dot: ~/.dotfiles -> "dotfiles" on GitHub
+        repo_name = repo.name.lstrip(".")
         runner.run(
             [
                 "git",
@@ -118,25 +119,6 @@ def _switch_remotes_to_ssh(
             ],
             dry_run=dry_run,
         )
-
-
-def _brew_bundle(
-    dotfiles_dir: Path,
-    *,
-    dry_run: bool = False,
-) -> None:
-    """Run brew update and brew bundle if Homebrew and a Brewfile are available."""
-    if shutil.which("brew") is None:
-        ui.status_line("[yellow]![/yellow]", "Homebrew", "not found — skipping brew bundle")
-        return
-
-    brewfile = dotfiles_dir / "Brewfile"
-    if not brewfile.exists():
-        ui.status_line("[yellow]![/yellow]", "Brewfile", "not found — skipping brew bundle")
-        return
-
-    runner.run(["brew", "update"], dry_run=dry_run)
-    runner.run(["brew", "bundle", f"--file={brewfile}"], dry_run=dry_run)
 
 
 def _apply_macos_defaults(
@@ -177,13 +159,17 @@ def run_init(
     user: str,
     orgs: list[str],
     *,
+    base_dir: Path | None = None,
     dry_run: bool = False,
 ) -> None:
     """Execute the full machine bootstrap flow.
 
     This is the 10-step init sequence that sets up a new machine from scratch.
+    Steps are fail-fast: if any step raises, subsequent steps are skipped.
+    Platform-conditional steps (macOS defaults, launch agent) are no-ops on
+    non-macOS platforms.
     """
-    config = LoadoutConfig(user=user, orgs=list(orgs))
+    config = LoadoutConfig(user=user, orgs=list(orgs), base_dir=base_dir)
     dotfiles_dir = config.dotfiles_dir
     dotfiles_private_dir = config.dotfiles_private_dir
     ssh_key_path = config.home / ".ssh" / "id_ed25519"
@@ -239,7 +225,7 @@ def run_init(
     # 6. Brew bundle
     ui.run_step(
         "Brew bundle",
-        lambda: _brew_bundle(dotfiles_dir, dry_run=dry_run),
+        lambda: brew_bundle(dotfiles_dir, dry_run=dry_run),
     )
 
     # 7. Install globals
@@ -261,7 +247,10 @@ def run_init(
     )
 
     # 10. Save config
-    ui.run_step(
-        "Save config",
-        lambda: save_config(config),
-    )
+    if not dry_run:
+        ui.run_step(
+            "Save config",
+            lambda: save_config(config),
+        )
+    else:
+        ui.status_line("[dim]▶[/dim]", "Save config", "skipped (dry run)")
