@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 
 from loadout.ui import err_console
@@ -27,7 +28,7 @@ def run(
         result with returncode=0 and empty stdout/stderr.
     """
     if dry_run:
-        display_cmd = " ".join(cmd)
+        display_cmd = shlex.join(cmd)
         err_console.print(f"[bold yellow][DRY-RUN][/bold yellow] {display_cmd}")
         return subprocess.CompletedProcess(
             args=cmd,
