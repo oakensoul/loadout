@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TypeVar
-
 from collections.abc import Callable
+from typing import TypeVar
 
 from rich.console import Console
 from rich.rule import Rule
