@@ -19,6 +19,42 @@ def check_health() -> None:
     render_checks(results)
 
 
+def run_build(*, dry_run: bool = False) -> None:
+    """Merge base + org fragments into final dotfiles.
+
+    Delegates to :mod:`loadout.build`.
+    """
+    from loadout.build import build_dotfiles
+    from loadout.config import load_config
+
+    config = load_config()
+    build_dotfiles(config, dry_run=dry_run)
+
+
+def run_globals(*, dry_run: bool = False) -> None:
+    """Install non-Homebrew globals (Claude Code, npm, pip).
+
+    Delegates to :mod:`loadout.globals`.
+    """
+    from loadout.config import load_config
+    from loadout.globals import install_globals
+
+    config = load_config()
+    install_globals(config, dry_run=dry_run)
+
+
+def run_display(mode: str | None = None, *, dry_run: bool = False) -> None:
+    """Switch macOS display profile.
+
+    Delegates to :mod:`loadout.display`.
+    """
+    from loadout.config import load_config
+    from loadout.display import apply_display_profile
+
+    config = load_config()
+    apply_display_profile(config, mode=mode, dry_run=dry_run)
+
+
 def run_update() -> None:
     """Pull latest sources and rebuild configuration.
 

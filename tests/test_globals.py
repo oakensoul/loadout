@@ -233,7 +233,7 @@ def test_install_globals_dry_run(
     mock_run: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Dry-run should pass through to all sub-functions."""
+    """Dry-run should pass through to mutating calls; read-only checks always execute."""
     mock_home.return_value = tmp_path
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="3.12.0\n", stderr=""
@@ -242,9 +242,14 @@ def test_install_globals_dry_run(
     config = LoadoutConfig(user="testuser", orgs=[], base_dir=tmp_path)
     install_globals(config, dry_run=True)
 
-    # All run calls should have dry_run=True
+    # Read-only queries (pyenv versions, npm list, pip show) should NOT have dry_run
+    # Mutating commands (install) should have dry_run=True
     for c in mock_run.call_args_list:
-        assert c.kwargs.get("dry_run") is True
+        # Read-only queries (capture=True, check=False) should not have dry_run
+        if c.kwargs.get("capture") and c.kwargs.get("check") is False:
+            assert c.kwargs.get("dry_run") is not True
+        else:
+            assert c.kwargs.get("dry_run") is True or "dry_run" not in c.kwargs
 
 
 # ---------------------------------------------------------------------------

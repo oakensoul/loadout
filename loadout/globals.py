@@ -9,6 +9,8 @@ from loadout.config import LoadoutConfig
 from loadout.runner import run
 from loadout.ui import run_step, section_header, status_line
 
+_NVM_VERSION = "0.40.1"
+
 
 def ensure_claude_code(*, dry_run: bool = False) -> None:
     """Install Claude Code CLI if not already present."""
@@ -30,7 +32,9 @@ def ensure_nvm_node(*, dry_run: bool = False) -> None:
             [
                 "bash",
                 "-c",
-                "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash",
+                "curl --fail -o-"
+                f" https://raw.githubusercontent.com/nvm-sh/nvm/v{_NVM_VERSION}/install.sh"
+                " | bash",
             ],
             dry_run=dry_run,
         )
@@ -53,7 +57,7 @@ def ensure_pyenv_python(*, dry_run: bool = False) -> None:
         status_line("[yellow]![/yellow]", "pyenv", "not found — install via Homebrew first")
         return
 
-    result = run(["pyenv", "versions", "--bare"], capture=True, check=False, dry_run=dry_run)
+    result = run(["pyenv", "versions", "--bare"], capture=True, check=False)
     installed = result.stdout.strip()
     if installed:
         status_line("[green]✓[/green]", "pyenv Python", "already installed")
@@ -69,7 +73,6 @@ def install_npm_globals(packages: list[str], *, dry_run: bool = False) -> None:
             ["npm", "list", "-g", "--depth=0", package],
             capture=True,
             check=False,
-            dry_run=dry_run,
         )
         if result.returncode == 0 and package in result.stdout:
             status_line("[green]✓[/green]", f"npm: {package}", "already installed")
@@ -84,7 +87,6 @@ def install_pip_globals(packages: list[str], *, dry_run: bool = False) -> None:
             ["pip", "show", package],
             capture=True,
             check=False,
-            dry_run=dry_run,
         )
         if result.returncode == 0:
             status_line("[green]✓[/green]", f"pip: {package}", "already installed")

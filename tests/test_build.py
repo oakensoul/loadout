@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
 from loadout.build import (
@@ -168,6 +169,18 @@ class TestMergeJson:
         result = json.loads(dest.read_text(encoding="utf-8"))
         assert result == {"key": "value"}
 
+    def test_malformed_json_raises(self, tmp_path: Path) -> None:
+        base = tmp_path / "base.json"
+        base.write_text(json.dumps({"a": 1}), encoding="utf-8")
+
+        org = tmp_path / "org.json"
+        org.write_text("{not valid json!!!", encoding="utf-8")
+
+        dest = tmp_path / "merged.json"
+
+        with pytest.raises(RuntimeError, match=str(org)):
+            _merge_json(base, org, dest)
+
 
 class TestMergeYaml:
     """Tests for _merge_yaml."""
@@ -202,6 +215,33 @@ class TestMergeYaml:
 
         result = yaml.safe_load(dest.read_text(encoding="utf-8"))
         assert result == {"key": "value"}
+
+    def test_malformed_yaml_raises(self, tmp_path: Path) -> None:
+        base = tmp_path / "base.yaml"
+        base.write_text(yaml.dump({"a": 1}), encoding="utf-8")
+
+        org = tmp_path / "org.yaml"
+        org.write_text(":\n  - :\n    bad:: yaml::: {{{\n", encoding="utf-8")
+
+        dest = tmp_path / "merged.yaml"
+
+        with pytest.raises(RuntimeError, match=str(org)):
+            _merge_yaml(base, org, dest)
+
+    def test_yaml_to_none_treated_as_empty(self, tmp_path: Path) -> None:
+        base = tmp_path / "base.yaml"
+        base.write_text(yaml.dump({"a": 1, "nested": {"x": 10}}), encoding="utf-8")
+
+        org = tmp_path / "org.yaml"
+        org.write_text("---\n", encoding="utf-8")
+
+        dest = tmp_path / "merged.yaml"
+
+        _merge_yaml(base, org, dest)
+
+        result = yaml.safe_load(dest.read_text(encoding="utf-8"))
+        assert result["a"] == 1
+        assert result["nested"]["x"] == 10
 
 
 def _setup_dotfiles(tmp_path: Path, orgs: list[str]) -> LoadoutConfig:

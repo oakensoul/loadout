@@ -225,6 +225,49 @@ def test_apply_display_profile_explicit_mode_non_macos(
 # ---------------------------------------------------------------------------
 
 
+def test_apply_display_profile_auto_detect(
+    macos_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When mode is None on macOS with external display, should resolve to 'connected'."""
+    monkeypatch.setattr("loadout.display.is_macos", lambda: True)
+    monkeypatch.setattr("loadout.display.detect_external_display", lambda **kwargs: True)
+    config = LoadoutConfig(base_dir=tmp_path)
+
+    run_calls: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        run_calls.append(cmd)
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    with patch("loadout.display.runner.run", side_effect=fake_run):
+        apply_display_profile(config, mode=None, dry_run=False)
+
+    # Should have resolved to "connected" mode and run base + desktop scripts.
+    assert len(run_calls) == 2
+    assert "defaults-base.sh" in run_calls[0][1]
+    assert "defaults-desktop.sh" in run_calls[1][1]
+
+
+def test_apply_display_profile_dry_run(
+    macos_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When dry_run is True, runner.run should be called with dry_run=True."""
+    config = LoadoutConfig(base_dir=tmp_path)
+
+    run_kwargs: list[dict[str, object]] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        run_kwargs.append(dict(kwargs))
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    with patch("loadout.display.runner.run", side_effect=fake_run):
+        apply_display_profile(config, mode="connected", dry_run=True)
+
+    assert len(run_kwargs) == 2
+    for kw in run_kwargs:
+        assert kw.get("dry_run") is True
+
+
 def test_generate_launch_agent_plist_valid_xml(tmp_path: Path) -> None:
     config = LoadoutConfig(base_dir=tmp_path)
     plist = generate_launch_agent_plist(config)
@@ -243,3 +286,32 @@ def test_generate_launch_agent_plist_contains_expected_paths(tmp_path: Path) -> 
     assert "display" in plist
     assert str(config.dotfiles_dir / "logs" / "display.log") in plist
     assert str(config.dotfiles_dir / "logs" / "display.err") in plist
+
+
+def test_generate_plist_no_mode_argument(tmp_path: Path) -> None:
+    """ProgramArguments should only contain 'loadout' and 'display', not a mode."""
+    config = LoadoutConfig(base_dir=tmp_path)
+    plist = generate_launch_agent_plist(config)
+
+    root = ET.fromstring(plist)
+    # Find ProgramArguments array.
+    dict_elem = root.find("dict")
+    assert dict_elem is not None
+    keys = list(dict_elem.iter("key"))
+    program_args_key = None
+    for key in keys:
+        if key.text == "ProgramArguments":
+            program_args_key = key
+            break
+    assert program_args_key is not None
+
+    # The array element follows the key.
+    children = list(dict_elem)
+    key_idx = children.index(program_args_key)
+    array_elem = children[key_idx + 1]
+    assert array_elem.tag == "array"
+
+    strings = [s.text for s in array_elem.findall("string")]
+    assert strings == ["loadout", "display"]
+    assert "connected" not in strings
+    assert "solo" not in strings
