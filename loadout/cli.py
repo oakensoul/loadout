@@ -76,6 +76,11 @@ def globals_cmd(ctx: click.Context) -> None:
 
 @cli.command()
 @click.argument("mode", type=click.Choice(["connected", "solo"]))
-def display(mode: str) -> None:
+@click.pass_context
+def display(ctx: click.Context, mode: str) -> None:
     """Switch macOS display profile."""
-    pass
+    from loadout.config import load_config
+    from loadout.display import apply_display_profile
+
+    config = load_config()
+    apply_display_profile(config, mode=mode, dry_run=ctx.obj["dry_run"])
