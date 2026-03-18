@@ -64,9 +64,14 @@ def build(ctx: click.Context) -> None:
 
 
 @cli.command("globals")
-def globals_cmd() -> None:
+@click.pass_context
+def globals_cmd(ctx: click.Context) -> None:
     """Install non-Homebrew globals (Claude Code, npm, pip)."""
-    pass
+    from loadout.config import load_config
+    from loadout.globals import install_globals
+
+    config = load_config()
+    install_globals(config, dry_run=ctx.obj["dry_run"])
 
 
 @cli.command()
