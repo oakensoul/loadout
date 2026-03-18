@@ -20,8 +20,8 @@ def cli(ctx: click.Context, dry_run: bool) -> None:
 
 @cli.command()
 @click.option("--user", required=True, help="GitHub username for dotfile config.")
-@click.option("--orgs", required=True, help="Comma-separated list of org names.")
-def init(user: str, orgs: str) -> None:
+@click.option("--orgs", required=True, multiple=True, help="Org names (repeat for multiple).")
+def init(user: str, orgs: tuple[str, ...]) -> None:
     """Initialize loadout for a user and set of orgs."""
     pass
 

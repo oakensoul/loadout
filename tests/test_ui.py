@@ -9,13 +9,6 @@ from rich.console import Console
 
 from loadout import ui
 
-
-def _make_console() -> tuple[Console, StringIO]:
-    """Return a Console that writes to a StringIO buffer and the buffer itself."""
-    buf = StringIO()
-    return Console(file=buf, width=80), buf
-
-
 # ── status_line ──────────────────────────────────────────────────────────────
 
 
@@ -101,3 +94,9 @@ class TestRunStep:
         output = buf.getvalue()
         assert "✗" in output
         assert "risky step" in output
+
+
+def _make_console() -> tuple[Console, StringIO]:
+    """Return a Console that writes to a StringIO buffer and the buffer itself."""
+    buf = StringIO()
+    return Console(file=buf, width=80), buf

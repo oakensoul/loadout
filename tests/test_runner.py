@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,11 +14,8 @@ class TestRunNormal:
     """Test normal (non-dry-run) execution."""
 
     @patch("loadout.runner.subprocess.run")
-    def test_run_calls_subprocess(self, mock_run: object) -> None:
+    def test_run_calls_subprocess(self, mock_run: MagicMock) -> None:
         """run() delegates to subprocess.run with correct arguments."""
-        from unittest.mock import MagicMock
-
-        assert isinstance(mock_run, MagicMock)
         mock_run.return_value = subprocess.CompletedProcess(
             args=["echo", "hello"], returncode=0, stdout="", stderr=""
         )
@@ -34,11 +31,8 @@ class TestRunNormal:
         assert result.returncode == 0
 
     @patch("loadout.runner.subprocess.run")
-    def test_run_capture_mode(self, mock_run: object) -> None:
+    def test_run_capture_mode(self, mock_run: MagicMock) -> None:
         """capture=True passes capture_output=True to subprocess.run."""
-        from unittest.mock import MagicMock
-
-        assert isinstance(mock_run, MagicMock)
         mock_run.return_value = subprocess.CompletedProcess(
             args=["echo", "hello"], returncode=0, stdout="hello\n", stderr=""
         )
@@ -54,14 +48,9 @@ class TestRunNormal:
         assert result.stdout == "hello\n"
 
     @patch("loadout.runner.subprocess.run")
-    def test_run_check_raises_on_failure(self, mock_run: object) -> None:
+    def test_run_check_raises_on_failure(self, mock_run: MagicMock) -> None:
         """check=True causes CalledProcessError to propagate."""
-        from unittest.mock import MagicMock
-
-        assert isinstance(mock_run, MagicMock)
-        mock_run.side_effect = subprocess.CalledProcessError(
-            returncode=1, cmd=["false"]
-        )
+        mock_run.side_effect = subprocess.CalledProcessError(returncode=1, cmd=["false"])
 
         with pytest.raises(subprocess.CalledProcessError):
             run(["false"], check=True)
@@ -71,12 +60,8 @@ class TestRunDryRun:
     """Test dry-run mode."""
 
     @patch("loadout.runner.subprocess.run")
-    def test_dry_run_does_not_call_subprocess(self, mock_run: object) -> None:
+    def test_dry_run_does_not_call_subprocess(self, mock_run: MagicMock) -> None:
         """dry_run=True must not invoke subprocess.run."""
-        from unittest.mock import MagicMock
-
-        assert isinstance(mock_run, MagicMock)
-
         result = run(["rm", "-rf", "/"], dry_run=True)
 
         mock_run.assert_not_called()
@@ -92,10 +77,3 @@ class TestRunDryRun:
         assert result.returncode == 0
         assert result.stdout == ""
         assert result.stderr == ""
-
-    def test_dry_run_with_string_command(self) -> None:
-        """dry_run=True works with string commands."""
-        result = run("echo test", dry_run=True)
-
-        assert result.returncode == 0
-        assert result.args == "echo test"

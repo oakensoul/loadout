@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.rule import Rule
 
 console = Console()
+err_console = Console(stderr=True)
 
 T = TypeVar("T")
 
@@ -34,6 +35,6 @@ def run_step(description: str, fn: Callable[[], T]) -> T:
             result = fn()
         console.print(f"[green]✓[/green]  {description}")
         return result
-    except BaseException as exc:
+    except Exception:
         console.print(f"[red]✗[/red]  {description}")
-        raise exc
+        raise

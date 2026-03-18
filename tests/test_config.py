@@ -7,40 +7,57 @@ from pathlib import Path
 from loadout.config import LoadoutConfig, load_config, save_config
 
 
-def test_path_properties() -> None:
-    """Path properties return the expected locations."""
-    cfg = LoadoutConfig()
-    home = Path.home()
+class TestPathProperties:
+    def test_default_paths(self) -> None:
+        """Path properties return the expected locations under home."""
+        cfg = LoadoutConfig()
+        home = Path.home()
 
-    assert cfg.dotfiles_dir == home / ".dotfiles"
-    assert cfg.dotfiles_private_dir == home / ".dotfiles-private"
-    assert cfg.build_dir == home / ".dotfiles" / "build"
-    assert cfg.config_path == home / ".dotfiles" / ".loadout.toml"
+        assert cfg.dotfiles_dir == home / ".dotfiles"
+        assert cfg.dotfiles_private_dir == home / ".dotfiles-private"
+        assert cfg.build_dir == home / ".dotfiles" / "build"
+        assert cfg.config_path == home / ".dotfiles" / ".loadout.toml"
 
+    def test_custom_base_dir(self, tmp_path: Path) -> None:
+        """Path properties respect a custom base_dir."""
+        cfg = LoadoutConfig(base_dir=tmp_path)
 
-def test_load_missing_file_returns_defaults(tmp_path: Path, monkeypatch: object) -> None:
-    """load_config returns a default config when the TOML file is missing."""
-    # Point config_path to a non-existent file by monkeypatching Path.home
-    import loadout.config as config_mod
-
-    monkeypatch.setattr(config_mod.Path, "home", staticmethod(lambda: tmp_path))  # type: ignore[arg-type]
-
-    cfg = load_config()
-
-    assert cfg.user == ""
-    assert cfg.orgs == []
+        assert cfg.dotfiles_dir == tmp_path / ".dotfiles"
+        assert cfg.dotfiles_private_dir == tmp_path / ".dotfiles-private"
+        assert cfg.build_dir == tmp_path / ".dotfiles" / "build"
+        assert cfg.config_path == tmp_path / ".dotfiles" / ".loadout.toml"
 
 
-def test_round_trip_save_load(tmp_path: Path, monkeypatch: object) -> None:
-    """Saving and then loading a config preserves all fields."""
-    import loadout.config as config_mod
+class TestLoadConfig:
+    def test_missing_file_returns_defaults(self, tmp_path: Path) -> None:
+        """load_config returns a default config when the TOML file is missing."""
+        cfg = load_config(base_dir=tmp_path)
 
-    monkeypatch.setattr(config_mod.Path, "home", staticmethod(lambda: tmp_path))  # type: ignore[arg-type]
+        assert cfg.user == ""
+        assert cfg.orgs == []
 
-    original = LoadoutConfig(user="oakensoul", orgs=["acme", "widgets"])
-    save_config(original)
+    def test_round_trip_save_load(self, tmp_path: Path) -> None:
+        """Saving and then loading a config preserves all fields."""
+        original = LoadoutConfig(user="oakensoul", orgs=["acme", "widgets"], base_dir=tmp_path)
+        save_config(original)
 
-    loaded = load_config()
+        loaded = load_config(base_dir=tmp_path)
 
-    assert loaded.user == original.user
-    assert loaded.orgs == original.orgs
+        assert loaded.user == original.user
+        assert loaded.orgs == original.orgs
+
+
+class TestSaveConfig:
+    def test_escapes_special_characters(self, tmp_path: Path) -> None:
+        """Values with quotes and backslashes are properly escaped."""
+        cfg = LoadoutConfig(
+            user='has"quote',
+            orgs=["back\\slash", 'more"quotes'],
+            base_dir=tmp_path,
+        )
+        save_config(cfg)
+
+        loaded = load_config(base_dir=tmp_path)
+
+        assert loaded.user == 'has"quote'
+        assert loaded.orgs == ["back\\slash", 'more"quotes']
