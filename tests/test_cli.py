@@ -52,10 +52,6 @@ class TestCLIHelp:
 class TestStubCommands:
     """Verify stub commands print a not-implemented message."""
 
-    def test_init_not_implemented(self) -> None:
-        result = CliRunner().invoke(cli, ["init", "--user", "test", "--orgs", "org1"])
-        assert "not yet implemented" in result.output.lower()
-
     def test_update_not_implemented(self) -> None:
         result = CliRunner().invoke(cli, ["update"])
         assert "not yet implemented" in result.output.lower()
