@@ -131,7 +131,7 @@ def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     3. For each org, apply the appropriate merge strategy per file.
     4. Copy built files from ``build_dir`` to the home directory.
     """
-    home_dir = config.base_dir if config.base_dir is not None else Path.home()
+    home_dir = config.home
     build_dir = config.build_dir
     base_dir = config.dotfiles_dir / "dotfiles" / "base"
     private_dir = config.dotfiles_private_dir / "dotfiles" / "orgs"
@@ -171,21 +171,21 @@ def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
             dest = build_dir / org_file.name
 
             if strategy == "concat":
-                base_file = build_dir / org_file.name
-                _merge_concat(base_file, org_file, dest)
+                accumulated = build_dir / org_file.name
+                _merge_concat(accumulated, org_file, dest)
                 status_line(">>", f"concat ({org})", org_file.name)
 
             elif strategy == "gitconfig":
                 gitconfig_org_paths[org] = org_file
 
             elif strategy == "json":
-                base_file = build_dir / org_file.name
-                _merge_json(base_file, org_file, dest)
+                accumulated = build_dir / org_file.name
+                _merge_json(accumulated, org_file, dest)
                 status_line(">>", f"json ({org})", org_file.name)
 
             elif strategy == "yaml":
-                base_file = build_dir / org_file.name
-                _merge_yaml(base_file, org_file, dest)
+                accumulated = build_dir / org_file.name
+                _merge_yaml(accumulated, org_file, dest)
                 status_line(">>", f"yaml ({org})", org_file.name)
 
             else:

@@ -57,27 +57,25 @@ def test_ensure_claude_code_dry_run(mock_which: MagicMock, mock_run: MagicMock) 
 
 @patch("loadout.globals.run")
 @patch("loadout.globals.shutil.which", return_value="/usr/local/bin/node")
-@patch("loadout.globals.Path.home")
 def test_ensure_nvm_node_already_installed(
-    mock_home: MagicMock, mock_which: MagicMock, mock_run: MagicMock, tmp_path: Path
+    mock_which: MagicMock, mock_run: MagicMock, tmp_path: Path
 ) -> None:
     """Should skip when NVM dir exists and node is available."""
     nvm_dir = tmp_path / ".nvm"
     nvm_dir.mkdir()
-    mock_home.return_value = tmp_path
-    ensure_nvm_node()
+    config = LoadoutConfig(base_dir=tmp_path)
+    ensure_nvm_node(config)
     mock_run.assert_not_called()
 
 
 @patch("loadout.globals.run")
 @patch("loadout.globals.shutil.which", return_value=None)
-@patch("loadout.globals.Path.home")
 def test_ensure_nvm_node_installs(
-    mock_home: MagicMock, mock_which: MagicMock, mock_run: MagicMock, tmp_path: Path
+    mock_which: MagicMock, mock_run: MagicMock, tmp_path: Path
 ) -> None:
     """Should install NVM and Node when neither exists."""
-    mock_home.return_value = tmp_path
-    ensure_nvm_node()
+    config = LoadoutConfig(base_dir=tmp_path)
+    ensure_nvm_node(config)
     assert mock_run.call_count == 2
 
 
@@ -190,20 +188,19 @@ def test_read_package_list_missing(tmp_path: Path) -> None:
 
 @patch("loadout.globals.run")
 @patch("loadout.globals.shutil.which", return_value="/usr/bin/thing")
-@patch("loadout.globals.Path.home")
 def test_install_globals_reads_org_packages(
-    mock_home: MagicMock,
     mock_which: MagicMock,
     mock_run: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Should read npm-globals.txt and pip-globals.txt from org dirs."""
-    mock_home.return_value = tmp_path
-
     # Set up pyenv versions check to return something so it skips install
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="3.12.0\n", stderr=""
     )
+
+    # Create NVM dir so ensure_nvm_node skips install
+    (tmp_path / ".nvm").mkdir()
 
     # Create org package list files
     org_dir = tmp_path / ".dotfiles-private" / "dotfiles" / "orgs" / "myorg"
@@ -226,15 +223,13 @@ def test_install_globals_reads_org_packages(
 
 @patch("loadout.globals.run")
 @patch("loadout.globals.shutil.which", return_value="/usr/bin/thing")
-@patch("loadout.globals.Path.home")
 def test_install_globals_dry_run(
-    mock_home: MagicMock,
     mock_which: MagicMock,
     mock_run: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Dry-run should pass through to mutating calls; read-only checks always execute."""
-    mock_home.return_value = tmp_path
+    """Dry-run should pass through; read-only checks always execute."""
+    (tmp_path / ".nvm").mkdir()
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="3.12.0\n", stderr=""
     )
