@@ -21,21 +21,30 @@ def cli(ctx: click.Context, dry_run: bool) -> None:
 @cli.command()
 @click.option("--user", required=True, help="GitHub username for dotfile config.")
 @click.option("--orgs", required=True, multiple=True, help="Org names (repeat for multiple).")
-def init(user: str, orgs: tuple[str, ...]) -> None:
+@click.pass_context
+def init(ctx: click.Context, user: str, orgs: tuple[str, ...]) -> None:
     """Initialize loadout for a user and set of orgs."""
-    click.echo("Not yet implemented.", err=True)
+    from loadout.core import run_init
+
+    run_init(user, list(orgs), dry_run=ctx.obj["dry_run"])
 
 
 @cli.command()
-def update() -> None:
+@click.pass_context
+def update(ctx: click.Context) -> None:
     """Pull latest dotfile sources and rebuild configuration."""
-    click.echo("Not yet implemented.", err=True)
+    from loadout.core import run_update
+
+    run_update(dry_run=ctx.obj["dry_run"])
 
 
 @cli.command()
-def upgrade() -> None:
+@click.pass_context
+def upgrade(ctx: click.Context) -> None:
     """Run Homebrew upgrade and update global packages."""
-    click.echo("Not yet implemented.", err=True)
+    from loadout.core import run_upgrade
+
+    run_upgrade(dry_run=ctx.obj["dry_run"])
 
 
 @cli.command()
