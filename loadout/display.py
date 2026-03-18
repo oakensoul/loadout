@@ -15,11 +15,13 @@ def is_macos() -> bool:
     return platform.system() == "Darwin"
 
 
-def detect_external_display(*, dry_run: bool = False) -> bool:
+def detect_external_display() -> bool:
     """Detect if an external display is connected.
 
     Uses system_profiler SPDisplaysDataType on macOS.
     Returns False on non-macOS platforms.
+
+    This is a read-only probe and always executes (ignores dry_run).
     """
     if not is_macos():
         return False
@@ -27,7 +29,6 @@ def detect_external_display(*, dry_run: bool = False) -> bool:
     result = runner.run(
         ["system_profiler", "SPDisplaysDataType"],
         capture=True,
-        dry_run=dry_run,
     )
     # Count "Resolution:" lines — each display has one
     resolution_count = sum(1 for line in result.stdout.splitlines() if "Resolution:" in line)
@@ -81,27 +82,34 @@ def apply_display_profile(
     Gracefully no-ops on non-macOS platforms.
     """
     if not is_macos() and mode is None:
-        ui.status_line("\u23ed\ufe0f", "Display", "skipped (not macOS)")
+        ui.status_line("[dim]⏭[/dim]", "Display", "skipped (not macOS)")
         return
 
     if mode is None:
-        has_external = detect_external_display(dry_run=dry_run)
+        has_external = detect_external_display()
         mode = "connected" if has_external else "solo"
 
     ui.section_header("Display Profile")
-    ui.status_line("\U0001f5a5", "Mode", mode)
+    ui.status_line("[green]✓[/green]", "Mode", mode)
+
+    if not is_macos() and mode is not None:
+        ui.status_line(
+            "[yellow]![/yellow]",
+            "Display",
+            "macOS scripts may not work on this platform",
+        )
 
     scripts = get_display_scripts(config, mode)
 
     if not scripts:
-        ui.status_line("\u26a0\ufe0f", "Display", "no scripts found")
+        ui.status_line("[yellow]![/yellow]", "Display", "no scripts found")
         return
 
     for script in scripts:
-        ui.status_line("\u25b6\ufe0f", "Running", script.name)
+        ui.status_line("[dim]▶[/dim]", "Running", script.name)
         runner.run(["bash", str(script)], dry_run=dry_run)
 
-    ui.status_line("\u2705", "Display", f"profile '{mode}' applied")
+    ui.status_line("[green]✓[/green]", "Display", f"profile '{mode}' applied")
 
 
 def generate_launch_agent_plist(config: LoadoutConfig) -> str:

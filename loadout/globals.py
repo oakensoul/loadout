@@ -20,9 +20,9 @@ def ensure_claude_code(*, dry_run: bool = False) -> None:
     run(["npm", "install", "-g", "@anthropic-ai/claude-code"], dry_run=dry_run)
 
 
-def ensure_nvm_node(*, dry_run: bool = False) -> None:
+def ensure_nvm_node(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """Install NVM and Node LTS if not already present."""
-    nvm_dir = Path.home() / ".nvm"
+    nvm_dir = config.home / ".nvm"
     if nvm_dir.exists() and shutil.which("node") is not None:
         status_line("[green]✓[/green]", "NVM + Node", "already installed")
         return
@@ -106,7 +106,10 @@ def install_globals(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """Install all non-Homebrew global packages."""
     section_header("Non-Homebrew Globals")
 
-    run_step("Ensure NVM + Node", lambda: ensure_nvm_node(dry_run=dry_run))
+    run_step(
+        "Ensure NVM + Node",
+        lambda: ensure_nvm_node(config, dry_run=dry_run),
+    )
     run_step("Ensure Claude Code CLI", lambda: ensure_claude_code(dry_run=dry_run))
     run_step("Ensure pyenv Python", lambda: ensure_pyenv_python(dry_run=dry_run))
 
@@ -118,6 +121,9 @@ def install_globals(config: LoadoutConfig, *, dry_run: bool = False) -> None:
         org_dir = config.dotfiles_private_dir / "dotfiles" / "orgs" / org
         npm_packages.extend(_read_package_list(org_dir / "npm-globals.txt"))
         pip_packages.extend(_read_package_list(org_dir / "pip-globals.txt"))
+
+    npm_packages = list(dict.fromkeys(npm_packages))
+    pip_packages = list(dict.fromkeys(pip_packages))
 
     if npm_packages:
         run_step(

@@ -23,19 +23,19 @@ def cli(ctx: click.Context, dry_run: bool) -> None:
 @click.option("--orgs", required=True, multiple=True, help="Org names (repeat for multiple).")
 def init(user: str, orgs: tuple[str, ...]) -> None:
     """Initialize loadout for a user and set of orgs."""
-    pass
+    click.echo("Not yet implemented.", err=True)
 
 
 @cli.command()
 def update() -> None:
     """Pull latest dotfile sources and rebuild configuration."""
-    pass
+    click.echo("Not yet implemented.", err=True)
 
 
 @cli.command()
 def upgrade() -> None:
     """Run Homebrew upgrade and update global packages."""
-    pass
+    click.echo("Not yet implemented.", err=True)
 
 
 @cli.command()

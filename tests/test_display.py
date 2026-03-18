@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from loadout import ui
 from loadout.config import LoadoutConfig
 from loadout.display import (
     apply_display_profile,
@@ -220,6 +221,37 @@ def test_apply_display_profile_explicit_mode_non_macos(
     assert len(run_calls) == 2
 
 
+def test_apply_display_profile_non_macos_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Explicit mode on non-macOS emits a platform warning."""
+    monkeypatch.setattr("loadout.display.is_macos", lambda: False)
+    macos = tmp_path / ".dotfiles" / "macos"
+    macos.mkdir(parents=True)
+    (macos / "defaults-base.sh").write_text("#!/bin/bash\n")
+    (macos / "defaults-laptop-solo.sh").write_text("#!/bin/bash\n")
+    config = LoadoutConfig(base_dir=tmp_path)
+
+    status_calls: list[tuple[str, ...]] = []
+    original_status_line = ui.status_line
+
+    def capture_status(*args: str) -> None:
+        status_calls.append(args)
+        original_status_line(*args)
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    with (
+        patch("loadout.display.runner.run", side_effect=fake_run),
+        patch("loadout.display.ui.status_line", side_effect=capture_status),
+    ):
+        apply_display_profile(config, mode="solo", dry_run=False)
+
+    warnings = [c for c in status_calls if len(c) >= 3 and "macOS scripts may not work" in c[2]]
+    assert len(warnings) == 1
+
+
 # ---------------------------------------------------------------------------
 # generate_launch_agent_plist
 # ---------------------------------------------------------------------------
@@ -230,7 +262,7 @@ def test_apply_display_profile_auto_detect(
 ) -> None:
     """When mode is None on macOS with external display, should resolve to 'connected'."""
     monkeypatch.setattr("loadout.display.is_macos", lambda: True)
-    monkeypatch.setattr("loadout.display.detect_external_display", lambda **kwargs: True)
+    monkeypatch.setattr("loadout.display.detect_external_display", lambda: True)
     config = LoadoutConfig(base_dir=tmp_path)
 
     run_calls: list[list[str]] = []

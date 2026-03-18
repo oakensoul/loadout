@@ -9,7 +9,7 @@ from pathlib import Path
 
 def _toml_escape(s: str) -> str:
     """Escape a string for inclusion in a TOML double-quoted value."""
-    return s.replace("\\", "\\\\").replace('"', '\\"')
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
 
 
 @dataclass
@@ -20,18 +20,20 @@ class LoadoutConfig:
     orgs: list[str] = field(default_factory=list)
     base_dir: Path | None = None
 
-    def _home(self) -> Path:
+    @property
+    def home(self) -> Path:
+        """Return the effective home directory."""
         return self.base_dir if self.base_dir is not None else Path.home()
 
     @property
     def dotfiles_dir(self) -> Path:
         """Return the path to the main dotfiles directory."""
-        return self._home() / ".dotfiles"
+        return self.home / ".dotfiles"
 
     @property
     def dotfiles_private_dir(self) -> Path:
         """Return the path to the private dotfiles directory."""
-        return self._home() / ".dotfiles-private"
+        return self.home / ".dotfiles-private"
 
     @property
     def build_dir(self) -> Path:
