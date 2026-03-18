@@ -25,11 +25,13 @@ def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[s
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=True)
 @patch("loadout.init.generate_launch_agent_plist", return_value="<plist/>")
+@patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
 def test_run_init_full_flow(
     mock_which: MagicMock,
     mock_run: MagicMock,
+    mock_brew: MagicMock,
     mock_plist: MagicMock,
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
@@ -37,43 +39,39 @@ def test_run_init_full_flow(
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """All 10 steps should execute in order."""
-    # Create dirs and files that would exist after a real clone.
-    # Clone itself is skipped (already-exists path), but all subsequent
-    # steps that rely on these dirs/files existing will work.
+    """All steps should execute in order."""
     (tmp_path / ".dotfiles").mkdir()
     (tmp_path / ".dotfiles-private").mkdir()
-    (tmp_path / ".dotfiles" / "Brewfile").write_text("# brewfile\n")
     macos_dir = tmp_path / ".dotfiles" / "macos"
     macos_dir.mkdir()
     (macos_dir / "defaults-base.sh").write_text("#!/bin/bash\n")
 
-    # Patch home to tmp_path so file operations are isolated
-    with patch.object(LoadoutConfig, "home", new_callable=lambda: property(lambda self: tmp_path)):
-        run_init("testuser", ["orgA", "orgB"])
-
-    # 1. Clone repos — dirs exist so clone is skipped (tested separately)
+    run_init("testuser", ["orgA", "orgB"], base_dir=tmp_path)
 
     # 2. SSH keygen
     keygen_calls = [c for c in mock_run.call_args_list if "ssh-keygen" in c.args[0]]
     assert len(keygen_calls) == 1
 
-    # 3. SSH key registration (op read + gh ssh-key add)
-    op_calls = [c for c in mock_run.call_args_list if c.args[0][0] == "op"]
-    gh_calls = [c for c in mock_run.call_args_list if c.args[0][0] == "gh"]
-    assert len(op_calls) >= 1
-    assert len(gh_calls) >= 1
+    # 3. SSH key registration (bash pipeline)
+    bash_calls = [
+        c
+        for c in mock_run.call_args_list
+        if c.args[0][0] == "bash" and "gh auth login" in str(c.args[0])
+    ]
+    assert len(bash_calls) == 1
 
-    # 4. Switch remotes
+    # 4. Switch remotes — repo names should NOT have leading dot
     set_url_calls = [c for c in mock_run.call_args_list if "set-url" in c.args[0]]
     assert len(set_url_calls) == 2
+    for c in set_url_calls:
+        url = c.args[0][-1]
+        assert "/." not in url, f"URL should not have leading dot: {url}"
 
     # 5. Build dotfiles
     mock_build.assert_called_once()
 
-    # 6. Brew bundle (brew update + brew bundle)
-    brew_calls = [c for c in mock_run.call_args_list if c.args[0][0] == "brew"]
-    assert len(brew_calls) >= 1  # At least brew update; Brewfile may not exist
+    # 6. Brew bundle
+    mock_brew.assert_called_once()
 
     # 7. Install globals
     mock_globals.assert_called_once()
@@ -94,27 +92,25 @@ def test_run_init_full_flow(
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
 def test_run_init_dry_run(
     mock_which: MagicMock,
     mock_run: MagicMock,
+    mock_brew: MagicMock,
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Mutating calls should receive dry_run=True."""
-    with patch.object(LoadoutConfig, "home", new_callable=lambda: property(lambda self: tmp_path)):
-        run_init("testuser", ["org1"], dry_run=True)
+    """Mutating calls should receive dry_run=True; save_config skipped."""
+    run_init("testuser", ["org1"], base_dir=tmp_path, dry_run=True)
 
     # All runner.run calls should have dry_run=True
     for c in mock_run.call_args_list:
-        # Skip read-only calls (op read with capture=True)
-        if c.kwargs.get("capture"):
-            continue
-        assert c.kwargs.get("dry_run") is True, f"Expected dry_run=True for {c}"
+        assert c.kwargs.get("dry_run") is True, f"Expected dry_run=True: {c}"
 
     # build_dotfiles should get dry_run=True
     mock_build.assert_called_once()
@@ -123,6 +119,13 @@ def test_run_init_dry_run(
     # install_globals should get dry_run=True
     mock_globals.assert_called_once()
     assert mock_globals.call_args.kwargs.get("dry_run") is True
+
+    # brew_bundle should get dry_run=True
+    mock_brew.assert_called_once()
+    assert mock_brew.call_args.kwargs.get("dry_run") is True
+
+    # save_config should NOT be called in dry-run
+    mock_save.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -134,11 +137,13 @@ def test_run_init_dry_run(
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
 def test_run_init_existing_dotfiles_skips_clone(
     mock_which: MagicMock,
     mock_run: MagicMock,
+    mock_brew: MagicMock,
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -149,8 +154,7 @@ def test_run_init_existing_dotfiles_skips_clone(
     (tmp_path / ".dotfiles").mkdir()
     (tmp_path / ".dotfiles-private").mkdir()
 
-    with patch.object(LoadoutConfig, "home", new_callable=lambda: property(lambda self: tmp_path)):
-        run_init("testuser", ["org1"])
+    run_init("testuser", ["org1"], base_dir=tmp_path)
 
     clone_calls = [c for c in mock_run.call_args_list if "clone" in c.args[0]]
     assert len(clone_calls) == 0
@@ -165,11 +169,13 @@ def test_run_init_existing_dotfiles_skips_clone(
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
 def test_run_init_existing_ssh_key_skips_keygen(
     mock_which: MagicMock,
     mock_run: MagicMock,
+    mock_brew: MagicMock,
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -181,8 +187,7 @@ def test_run_init_existing_ssh_key_skips_keygen(
     ssh_dir.mkdir()
     (ssh_dir / "id_ed25519").write_text("fake key", encoding="utf-8")
 
-    with patch.object(LoadoutConfig, "home", new_callable=lambda: property(lambda self: tmp_path)):
-        run_init("testuser", ["org1"])
+    run_init("testuser", ["org1"], base_dir=tmp_path)
 
     keygen_calls = [c for c in mock_run.call_args_list if "ssh-keygen" in c.args[0]]
     assert len(keygen_calls) == 0
@@ -197,35 +202,34 @@ def test_run_init_existing_ssh_key_skips_keygen(
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 def test_run_init_no_op_cli_skips_ssh_registration(
     mock_run: MagicMock,
+    mock_brew: MagicMock,
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """When 1Password CLI is not available, SSH key registration should be skipped."""
+    """When 1Password CLI is not available, SSH registration is skipped."""
 
     def selective_which(name: str) -> str | None:
         if name == "op":
             return None
         return "/usr/bin/thing"
 
-    with (
-        patch("loadout.init.shutil.which", side_effect=selective_which),
-        patch.object(LoadoutConfig, "home", new_callable=lambda: property(lambda self: tmp_path)),
-    ):
-        run_init("testuser", ["org1"])
+    with patch("loadout.init.shutil.which", side_effect=selective_which):
+        run_init("testuser", ["org1"], base_dir=tmp_path)
 
-    # No op or gh calls should have been made
-    op_calls = [c for c in mock_run.call_args_list if c.args[0][0] == "op"]
-    gh_auth_calls = [
-        c for c in mock_run.call_args_list if c.args[0][0] == "gh" and "ssh-key" in c.args[0]
+    # No bash pipeline (op read | gh auth login) calls
+    bash_auth_calls = [
+        c
+        for c in mock_run.call_args_list
+        if c.args[0][0] == "bash" and "gh auth login" in str(c.args[0])
     ]
-    assert len(op_calls) == 0
-    assert len(gh_auth_calls) == 0
+    assert len(bash_auth_calls) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -237,30 +241,29 @@ def test_run_init_no_op_cli_skips_ssh_registration(
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 def test_run_init_no_brew_skips_bundle(
     mock_run: MagicMock,
+    mock_brew: MagicMock,
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """When brew is not available, brew bundle step should be skipped."""
+    """brew_bundle is called regardless; it handles missing brew internally."""
 
     def selective_which(name: str) -> str | None:
         if name == "brew":
             return None
         return "/usr/bin/thing"
 
-    with (
-        patch("loadout.init.shutil.which", side_effect=selective_which),
-        patch.object(LoadoutConfig, "home", new_callable=lambda: property(lambda self: tmp_path)),
-    ):
-        run_init("testuser", ["org1"])
+    with patch("loadout.init.shutil.which", side_effect=selective_which):
+        run_init("testuser", ["org1"], base_dir=tmp_path)
 
-    brew_calls = [c for c in mock_run.call_args_list if c.args[0][0] == "brew"]
-    assert len(brew_calls) == 0
+    # brew_bundle is still called (it decides internally to skip)
+    mock_brew.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -272,11 +275,13 @@ def test_run_init_no_brew_skips_bundle(
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
 def test_run_init_saves_config(
     mock_which: MagicMock,
     mock_run: MagicMock,
+    mock_brew: MagicMock,
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -284,8 +289,7 @@ def test_run_init_saves_config(
     tmp_path: Path,
 ) -> None:
     """save_config should be called with correct user and orgs."""
-    with patch.object(LoadoutConfig, "home", new_callable=lambda: property(lambda self: tmp_path)):
-        run_init("myuser", ["orgX", "orgY"])
+    run_init("myuser", ["orgX", "orgY"], base_dir=tmp_path)
 
     mock_save.assert_called_once()
     saved = mock_save.call_args.args[0]
@@ -303,11 +307,13 @@ def test_run_init_saves_config(
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
 def test_run_init_non_macos_skips_launch_agent(
     mock_which: MagicMock,
     mock_run: MagicMock,
+    mock_brew: MagicMock,
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -315,13 +321,10 @@ def test_run_init_non_macos_skips_launch_agent(
     tmp_path: Path,
 ) -> None:
     """On non-macOS, the launch agent plist should not be written."""
-    with patch.object(LoadoutConfig, "home", new_callable=lambda: property(lambda self: tmp_path)):
-        run_init("testuser", ["org1"])
+    run_init("testuser", ["org1"], base_dir=tmp_path)
 
-    # No launchctl calls
     launchctl_calls = [c for c in mock_run.call_args_list if "launchctl" in c.args[0]]
     assert len(launchctl_calls) == 0
 
-    # No plist file written
     plist_path = tmp_path / "Library" / "LaunchAgents" / "com.oakensoul.loadout.display.plist"
     assert not plist_path.exists()

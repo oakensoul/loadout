@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 
+from loadout.brew import brew_bundle
 from loadout.build import build_dotfiles
 from loadout.config import LoadoutConfig
 from loadout.globals import install_globals
@@ -57,24 +58,10 @@ def run_update(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     run_step("Build dotfiles", lambda: build_dotfiles(config, dry_run=dry_run))
 
     # Brew update + bundle
-    if shutil.which("brew") is not None:
-        run_step(
-            "Brew update",
-            lambda: run(["brew", "update"], dry_run=dry_run),
-        )
-        brewfile = dotfiles_dir / "Brewfile"
-        if brewfile.exists():
-            run_step(
-                "Brew bundle",
-                lambda: run(
-                    ["brew", "bundle", f"--file={brewfile}"],
-                    dry_run=dry_run,
-                ),
-            )
-        else:
-            status_line("[yellow]![/yellow]", "Brewfile", "not found — skipping bundle")
-    else:
-        status_line("[yellow]![/yellow]", "brew", "not found — skipping Homebrew steps")
+    run_step(
+        "Brew bundle",
+        lambda: brew_bundle(dotfiles_dir, dry_run=dry_run),
+    )
 
     # Install globals
     run_step("Install globals", lambda: install_globals(config, dry_run=dry_run))
