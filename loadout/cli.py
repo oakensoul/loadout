@@ -39,9 +39,17 @@ def upgrade() -> None:
 
 
 @cli.command()
-def check() -> None:
+@click.pass_context
+def check(ctx: click.Context) -> None:
     """Run health checks — warn only, never mutates."""
-    pass
+    from loadout import ui
+    from loadout.check import render_checks, run_checks
+    from loadout.config import load_config
+
+    config = load_config()
+    ui.section_header("ENVIRONMENT")
+    results = run_checks(config)
+    render_checks(results)
 
 
 @cli.command()
