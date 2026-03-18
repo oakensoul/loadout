@@ -1,0 +1,47 @@
+version: 0.7.0
+last_updated: '2026-03-13T16:20:50.613207+00:00'
+config_complete: true
+project_name: loadout
+project_root: /Users/oakensoul/Developer/oakensoul/loadout
+vcs:
+  type: git
+  has_vcs: true
+  uses_worktrees: false
+  remote_url: https://github.com/oakensoul/loadout.git
+  is_github: true
+  is_gitlab: false
+files:
+  has_readme: true
+  has_license: false
+  has_gitignore: false
+  has_dockerfile: false
+  has_docker_compose: false
+  has_changelog: false
+  has_contributing: false
+  has_tests: false
+  has_ci_cd: false
+  has_docs_directory: true
+languages:
+  primary: Python
+  all:
+  - Python
+tools:
+  detected:
+  - Git
+  testing_framework: Minimal - manual testing only
+inferred:
+  project_type: Unknown
+  team_collaboration: Solo project - just me
+  documentation_level: Minimal - README and inline comments
+  code_organization: Follow existing pattern
+preferences:
+  branching_model: GitHub Flow (feature branches → main)
+  issue_tracking: GitHub Issues
+  github_project_board: null
+  jira_config: null
+  confluence_spaces: null
+  project_conventions: 'Review docs/architecture/README.md for full architecture.
+    Key patterns: Click CLI + Rich output, Python build step for dotfiles (no symlinks),
+    org-layered config (base + org fragments), 1Password CLI for secrets, macOS display
+    profile switching via launch agent.'
+  api_docs_approach: null
