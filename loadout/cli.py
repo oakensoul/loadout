@@ -45,9 +45,14 @@ def check() -> None:
 
 
 @cli.command()
-def build() -> None:
+@click.pass_context
+def build(ctx: click.Context) -> None:
     """Merge base + org fragments into final dotfiles."""
-    pass
+    from loadout.build import build_dotfiles
+    from loadout.config import load_config
+
+    config = load_config()
+    build_dotfiles(config, dry_run=ctx.obj["dry_run"])
 
 
 @cli.command("globals")
