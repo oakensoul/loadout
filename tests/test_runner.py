@@ -25,14 +25,15 @@ class TestRunNormal:
         mock_run.assert_called_once_with(
             ["echo", "hello"],
             check=True,
-            capture_output=False,
+            stdout=None,
+            stderr=subprocess.PIPE,
             text=True,
         )
         assert result.returncode == 0
 
     @patch("loadout.runner.subprocess.run")
     def test_run_capture_mode(self, mock_run: MagicMock) -> None:
-        """capture=True passes capture_output=True to subprocess.run."""
+        """capture=True passes stdout=PIPE, stderr=PIPE."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["echo", "hello"], returncode=0, stdout="hello\n", stderr=""
         )
@@ -42,7 +43,8 @@ class TestRunNormal:
         mock_run.assert_called_once_with(
             ["echo", "hello"],
             check=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
         )
         assert result.stdout == "hello\n"
@@ -54,6 +56,34 @@ class TestRunNormal:
 
         with pytest.raises(subprocess.CalledProcessError):
             run(["false"], check=True)
+
+    @patch("loadout.runner.subprocess.run")
+    def test_run_file_not_found(self, mock_run: MagicMock) -> None:
+        """FileNotFoundError is re-raised with a descriptive message."""
+        mock_run.side_effect = FileNotFoundError("No such file or directory")
+
+        with pytest.raises(FileNotFoundError, match="Command not found: nosuchcmd"):
+            run(["nosuchcmd", "--help"])
+
+    @patch("loadout.runner.subprocess.run")
+    def test_run_always_captures_stderr(self, mock_run: MagicMock) -> None:
+        """stderr=PIPE is passed even when capture=False."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["echo", "hi"],
+            returncode=0,
+            stdout=None,
+            stderr="",
+        )
+
+        run(["echo", "hi"], capture=False)
+
+        mock_run.assert_called_once_with(
+            ["echo", "hi"],
+            check=True,
+            stdout=None,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
 
 class TestRunDryRun:

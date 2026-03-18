@@ -37,9 +37,13 @@ def run(
             stderr="",
         )
 
-    return subprocess.run(
-        cmd,
-        check=check,
-        capture_output=capture,
-        text=True,
-    )
+    try:
+        return subprocess.run(
+            cmd,
+            check=check,
+            stdout=subprocess.PIPE if capture else None,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Command not found: {cmd[0]}") from None

@@ -4,7 +4,32 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from loadout.config import LoadoutConfig, load_config, save_config
+from loadout.config import LoadoutConfig, _toml_escape, load_config, save_config
+
+
+class TestHomeProperty:
+    def test_default_returns_path_home(self) -> None:
+        """home property returns Path.home() when base_dir is None."""
+        cfg = LoadoutConfig()
+        assert cfg.home == Path.home()
+
+    def test_custom_base_dir(self, tmp_path: Path) -> None:
+        """home property returns base_dir when set."""
+        cfg = LoadoutConfig(base_dir=tmp_path)
+        assert cfg.home == tmp_path
+
+
+class TestTomlEscape:
+    def test_escapes_newlines_and_tabs(self) -> None:
+        """_toml_escape should escape newline and tab characters."""
+        assert _toml_escape("a\nb") == "a\\nb"
+        assert _toml_escape("a\tb") == "a\\tb"
+        assert _toml_escape("a\n\tb") == "a\\n\\tb"
+
+    def test_escapes_quotes_and_backslashes(self) -> None:
+        """_toml_escape should escape quotes and backslashes."""
+        assert _toml_escape('a"b') == 'a\\"b'
+        assert _toml_escape("a\\b") == "a\\\\b"
 
 
 class TestPathProperties:

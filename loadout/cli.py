@@ -23,41 +23,52 @@ def cli(ctx: click.Context, dry_run: bool) -> None:
 @click.option("--orgs", required=True, multiple=True, help="Org names (repeat for multiple).")
 def init(user: str, orgs: tuple[str, ...]) -> None:
     """Initialize loadout for a user and set of orgs."""
-    pass
+    click.echo("Not yet implemented.", err=True)
 
 
 @cli.command()
 def update() -> None:
     """Pull latest dotfile sources and rebuild configuration."""
-    pass
+    click.echo("Not yet implemented.", err=True)
 
 
 @cli.command()
 def upgrade() -> None:
     """Run Homebrew upgrade and update global packages."""
-    pass
+    click.echo("Not yet implemented.", err=True)
 
 
 @cli.command()
 def check() -> None:
     """Run health checks — warn only, never mutates."""
-    pass
+    from loadout.core import check_health
+
+    check_health()
 
 
 @cli.command()
-def build() -> None:
+@click.pass_context
+def build(ctx: click.Context) -> None:
     """Merge base + org fragments into final dotfiles."""
-    pass
+    from loadout.core import run_build
+
+    run_build(dry_run=ctx.obj["dry_run"])
 
 
 @cli.command("globals")
-def globals_cmd() -> None:
+@click.pass_context
+def globals_cmd(ctx: click.Context) -> None:
     """Install non-Homebrew globals (Claude Code, npm, pip)."""
-    pass
+    from loadout.core import run_globals
+
+    run_globals(dry_run=ctx.obj["dry_run"])
 
 
 @cli.command()
-@click.argument("mode", type=click.Choice(["connected", "solo"]))
-def display(mode: str) -> None:
+@click.argument("mode", type=click.Choice(["connected", "solo"]), default=None, required=False)
+@click.pass_context
+def display(ctx: click.Context, mode: str | None) -> None:
     """Switch macOS display profile."""
-    pass
+    from loadout.core import run_display
+
+    run_display(mode=mode, dry_run=ctx.obj["dry_run"])

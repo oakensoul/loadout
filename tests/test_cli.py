@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import click
 from click.testing import CliRunner
 
@@ -47,6 +49,22 @@ class TestCLIHelp:
         assert result.exit_code == 0
 
 
+class TestStubCommands:
+    """Verify stub commands print a not-implemented message."""
+
+    def test_init_not_implemented(self) -> None:
+        result = CliRunner().invoke(cli, ["init", "--user", "test", "--orgs", "org1"])
+        assert "not yet implemented" in result.output.lower()
+
+    def test_update_not_implemented(self) -> None:
+        result = CliRunner().invoke(cli, ["update"])
+        assert "not yet implemented" in result.output.lower()
+
+    def test_upgrade_not_implemented(self) -> None:
+        result = CliRunner().invoke(cli, ["upgrade"])
+        assert "not yet implemented" in result.output.lower()
+
+
 class TestDryRunFlag:
     """Verify --dry-run propagates through context."""
 
@@ -70,3 +88,37 @@ class TestDryRunFlag:
         finally:
             # Clean up the temporary test command
             cli.commands.pop("_test_dry_run", None)  # type: ignore[union-attr]
+
+
+class TestCLIDelegation:
+    """Verify CLI commands delegate to core functions."""
+
+    @patch("loadout.core.check_health")
+    def test_check_invokes_core(self, mock_check: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["check"])
+        assert result.exit_code == 0
+        mock_check.assert_called_once()
+
+    @patch("loadout.core.run_build")
+    def test_build_invokes_core(self, mock_build: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["--dry-run", "build"])
+        assert result.exit_code == 0
+        mock_build.assert_called_once_with(dry_run=True)
+
+    @patch("loadout.core.run_globals")
+    def test_globals_invokes_core(self, mock_globals: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["globals"])
+        assert result.exit_code == 0
+        mock_globals.assert_called_once()
+
+    @patch("loadout.core.run_display")
+    def test_display_invokes_core_with_mode(self, mock_display: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["display", "connected"])
+        assert result.exit_code == 0
+        mock_display.assert_called_once_with(mode="connected", dry_run=False)
+
+    @patch("loadout.core.run_display")
+    def test_display_invokes_core_without_mode(self, mock_display: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["display"])
+        assert result.exit_code == 0
+        mock_display.assert_called_once_with(mode=None, dry_run=False)
