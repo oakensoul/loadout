@@ -159,6 +159,15 @@ class TestCheckGithubSsh:
             result = check_github_ssh()
         assert result.status == CheckStatus.WARN
 
+    def test_ssh_timeout(self) -> None:
+        with patch(
+            "loadout.check.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="ssh", timeout=10),
+        ):
+            result = check_github_ssh()
+        assert result.status == CheckStatus.WARN
+        assert "timed out" in result.detail.lower()
+
     def test_ssh_not_found(self) -> None:
         with patch("loadout.check.subprocess.run", side_effect=FileNotFoundError):
             result = check_github_ssh()

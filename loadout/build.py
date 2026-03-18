@@ -32,7 +32,12 @@ def _get_merge_strategy(filename: str) -> str:
 
 
 def _merge_concat(base_path: Path, org_path: Path, dest_path: Path) -> None:
-    """Merge by concatenating org content after base content with a separator."""
+    """Merge by concatenating org content after base content with a separator.
+
+    When multiple orgs are configured, concatenation is intentionally cumulative:
+    each org's content is appended after the previous result so that all layers
+    contribute to the final file.
+    """
     base_content = base_path.read_text(encoding="utf-8") if base_path.exists() else ""
     org_content = org_path.read_text(encoding="utf-8")
 
@@ -84,9 +89,15 @@ def _merge_json(base_path: Path, org_path: Path, dest_path: Path) -> None:
     """Deep-merge two JSON files; org values win on conflict."""
     base_data: object = {}
     if base_path.exists():
-        base_data = json.loads(base_path.read_text(encoding="utf-8"))
+        try:
+            base_data = json.loads(base_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"Malformed JSON in {base_path}: {exc}") from exc
 
-    org_data: object = json.loads(org_path.read_text(encoding="utf-8"))
+    try:
+        org_data: object = json.loads(org_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Malformed JSON in {org_path}: {exc}") from exc
     merged = _deep_merge(base_data, org_data)
     dest_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
 
@@ -95,11 +106,17 @@ def _merge_yaml(base_path: Path, org_path: Path, dest_path: Path) -> None:
     """Deep-merge two YAML files; org values win on conflict."""
     base_data: object = {}
     if base_path.exists():
-        raw = yaml.safe_load(base_path.read_text(encoding="utf-8"))
+        try:
+            raw = yaml.safe_load(base_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            raise RuntimeError(f"Malformed YAML in {base_path}: {exc}") from exc
         if raw is not None:
             base_data = raw
 
-    raw_org = yaml.safe_load(org_path.read_text(encoding="utf-8"))
+    try:
+        raw_org = yaml.safe_load(org_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise RuntimeError(f"Malformed YAML in {org_path}: {exc}") from exc
     org_data: object = raw_org if raw_org is not None else {}
     merged = _deep_merge(base_data, org_data)
     dest_path.write_text(yaml.dump(merged, default_flow_style=False), encoding="utf-8")

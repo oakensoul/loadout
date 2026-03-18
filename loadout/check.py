@@ -105,6 +105,7 @@ def check_github_ssh() -> CheckResult:
             capture_output=True,
             text=True,
             check=False,
+            timeout=10,
         )
         if result.returncode == 1 and "Hi " in result.stderr:
             detail = result.stderr.strip()
@@ -114,6 +115,8 @@ def check_github_ssh() -> CheckResult:
             label="GitHub SSH",
             detail="SSH connection did not return expected greeting",
         )
+    except subprocess.TimeoutExpired:
+        return CheckResult(status=CheckStatus.WARN, label="GitHub SSH", detail="SSH timed out")
     except FileNotFoundError:
         return CheckResult(
             status=CheckStatus.ERROR, label="GitHub SSH", detail="ssh not found on PATH"
@@ -154,9 +157,9 @@ def run_checks(config: LoadoutConfig) -> list[CheckResult]:
 
 
 _STATUS_ICONS: dict[CheckStatus, str] = {
-    CheckStatus.OK: "\u2705",
-    CheckStatus.WARN: "\u26a0\ufe0f",
-    CheckStatus.ERROR: "\u274c",
+    CheckStatus.OK: "[green]✓[/green]",
+    CheckStatus.WARN: "[yellow]![/yellow]",
+    CheckStatus.ERROR: "[red]✗[/red]",
 }
 
 

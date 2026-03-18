@@ -39,48 +39,36 @@ def upgrade() -> None:
 
 
 @cli.command()
-@click.pass_context
-def check(ctx: click.Context) -> None:
+def check() -> None:
     """Run health checks — warn only, never mutates."""
-    from loadout import ui
-    from loadout.check import render_checks, run_checks
-    from loadout.config import load_config
+    from loadout.core import check_health
 
-    config = load_config()
-    ui.section_header("ENVIRONMENT")
-    results = run_checks(config)
-    render_checks(results)
+    check_health()
 
 
 @cli.command()
 @click.pass_context
 def build(ctx: click.Context) -> None:
     """Merge base + org fragments into final dotfiles."""
-    from loadout.build import build_dotfiles
-    from loadout.config import load_config
+    from loadout.core import run_build
 
-    config = load_config()
-    build_dotfiles(config, dry_run=ctx.obj["dry_run"])
+    run_build(dry_run=ctx.obj["dry_run"])
 
 
 @cli.command("globals")
 @click.pass_context
 def globals_cmd(ctx: click.Context) -> None:
     """Install non-Homebrew globals (Claude Code, npm, pip)."""
-    from loadout.config import load_config
-    from loadout.globals import install_globals
+    from loadout.core import run_globals
 
-    config = load_config()
-    install_globals(config, dry_run=ctx.obj["dry_run"])
+    run_globals(dry_run=ctx.obj["dry_run"])
 
 
 @cli.command()
-@click.argument("mode", type=click.Choice(["connected", "solo"]))
+@click.argument("mode", type=click.Choice(["connected", "solo"]), default=None, required=False)
 @click.pass_context
-def display(ctx: click.Context, mode: str) -> None:
+def display(ctx: click.Context, mode: str | None) -> None:
     """Switch macOS display profile."""
-    from loadout.config import load_config
-    from loadout.display import apply_display_profile
+    from loadout.core import run_display
 
-    config = load_config()
-    apply_display_profile(config, mode=mode, dry_run=ctx.obj["dry_run"])
+    run_display(mode=mode, dry_run=ctx.obj["dry_run"])

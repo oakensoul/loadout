@@ -122,7 +122,6 @@ def generate_launch_agent_plist(config: LoadoutConfig) -> str:
             <array>
                 <string>{loadout_bin}</string>
                 <string>display</string>
-                <string>connected</string>
             </array>
             <key>WatchPaths</key>
             <array>
