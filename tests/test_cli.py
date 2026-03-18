@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import click
 from click.testing import CliRunner
 
 from loadout.cli import cli
@@ -50,6 +51,22 @@ class TestDryRunFlag:
     """Verify --dry-run propagates through context."""
 
     def test_dry_run_sets_context(self) -> None:
-        result = CliRunner().invoke(cli, ["--dry-run", "--help"])
-        assert result.exit_code == 0
-        assert "--dry-run" in result.output
+        """--dry-run flag sets ctx.obj['dry_run'] to True."""
+        captured: dict[str, bool] = {}
+
+        @cli.command("_test_dry_run")
+        @click.pass_context
+        def test_cmd(ctx: click.Context) -> None:
+            captured["dry_run"] = ctx.obj["dry_run"]
+
+        try:
+            result = CliRunner().invoke(cli, ["--dry-run", "_test_dry_run"])
+            assert result.exit_code == 0
+            assert captured["dry_run"] is True
+
+            result = CliRunner().invoke(cli, ["_test_dry_run"])
+            assert result.exit_code == 0
+            assert captured["dry_run"] is False
+        finally:
+            # Clean up the temporary test command
+            cli.commands.pop("_test_dry_run", None)  # type: ignore[union-attr]

@@ -83,4 +83,4 @@ def save_config(config: LoadoutConfig) -> None:
         "",  # trailing newline
     ]
 
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
