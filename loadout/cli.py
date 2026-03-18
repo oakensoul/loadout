@@ -4,13 +4,18 @@ import click
 
 
 @click.group()
-def cli() -> None:
+@click.option(
+    "--dry-run", is_flag=True, default=False, help="Show what would be done without executing."
+)
+@click.pass_context
+def cli(ctx: click.Context, dry_run: bool) -> None:
     """Loadout — machine configuration management.
 
     Orchestrates dotfile building, Homebrew, global package installs,
     and health checks across multiple user/org contexts.
     """
-    pass
+    ctx.ensure_object(dict)
+    ctx.obj["dry_run"] = dry_run
 
 
 @cli.command()
