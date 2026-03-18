@@ -49,18 +49,6 @@ class TestCLIHelp:
         assert result.exit_code == 0
 
 
-class TestStubCommands:
-    """Verify stub commands print a not-implemented message."""
-
-    def test_update_not_implemented(self) -> None:
-        result = CliRunner().invoke(cli, ["update"])
-        assert "not yet implemented" in result.output.lower()
-
-    def test_upgrade_not_implemented(self) -> None:
-        result = CliRunner().invoke(cli, ["upgrade"])
-        assert "not yet implemented" in result.output.lower()
-
-
 class TestDryRunFlag:
     """Verify --dry-run propagates through context."""
 
@@ -118,3 +106,21 @@ class TestCLIDelegation:
         result = CliRunner().invoke(cli, ["display"])
         assert result.exit_code == 0
         mock_display.assert_called_once_with(mode=None, dry_run=False)
+
+    @patch("loadout.core.run_init")
+    def test_init_invokes_core(self, mock_init: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["init", "--user", "testuser", "--orgs", "org1"])
+        assert result.exit_code == 0
+        mock_init.assert_called_once_with("testuser", ["org1"], dry_run=False)
+
+    @patch("loadout.core.run_update")
+    def test_update_invokes_core(self, mock_update: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["update"])
+        assert result.exit_code == 0
+        mock_update.assert_called_once_with(dry_run=False)
+
+    @patch("loadout.core.run_upgrade")
+    def test_upgrade_invokes_core(self, mock_upgrade: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["upgrade"])
+        assert result.exit_code == 0
+        mock_upgrade.assert_called_once_with(dry_run=False)

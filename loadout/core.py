@@ -65,9 +65,25 @@ def run_init(user: str, orgs: list[str], *, dry_run: bool = False) -> None:
     _run_init(user, orgs, dry_run=dry_run)
 
 
-def run_update() -> None:
+def run_update(*, dry_run: bool = False) -> None:
     """Pull latest sources and rebuild configuration.
 
-    Delegates to :mod:`loadout.build` and :mod:`loadout.globals` once implemented.
+    Delegates to :mod:`loadout.update`.
     """
-    pass
+    from loadout.config import load_config
+    from loadout.update import run_update as _run_update
+
+    config = load_config()
+    _run_update(config, dry_run=dry_run)
+
+
+def run_upgrade(*, dry_run: bool = False) -> None:
+    """Run update then upgrade Homebrew packages.
+
+    Delegates to :mod:`loadout.update`.
+    """
+    from loadout.config import load_config
+    from loadout.update import run_upgrade as _run_upgrade
+
+    config = load_config()
+    _run_upgrade(config, dry_run=dry_run)
