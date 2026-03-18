@@ -1,0 +1,372 @@
+"""Tests for loadout.build module."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+import yaml
+
+from loadout.build import (
+    _get_merge_strategy,
+    _merge_concat,
+    _merge_gitconfig,
+    _merge_json,
+    _merge_yaml,
+    build_dotfiles,
+)
+from loadout.config import LoadoutConfig
+
+
+class TestGetMergeStrategy:
+    """Tests for _get_merge_strategy."""
+
+    def test_concat_files(self) -> None:
+        assert _get_merge_strategy(".zshrc") == "concat"
+        assert _get_merge_strategy(".aliases") == "concat"
+        assert _get_merge_strategy(".zprofile") == "concat"
+        assert _get_merge_strategy(".zshenv") == "concat"
+
+    def test_gitconfig(self) -> None:
+        assert _get_merge_strategy(".gitconfig") == "gitconfig"
+
+    def test_json(self) -> None:
+        assert _get_merge_strategy("settings.json") == "json"
+        assert _get_merge_strategy(".prettierrc.json") == "json"
+
+    def test_yaml(self) -> None:
+        assert _get_merge_strategy("config.yaml") == "yaml"
+        assert _get_merge_strategy("config.yml") == "yaml"
+
+    def test_replace(self) -> None:
+        assert _get_merge_strategy(".vimrc") == "replace"
+        assert _get_merge_strategy(".tmux.conf") == "replace"
+        assert _get_merge_strategy("somefile") == "replace"
+
+
+class TestMergeConcat:
+    """Tests for _merge_concat."""
+
+    def test_concat_with_base(self, tmp_path: Path) -> None:
+        base = tmp_path / "base" / ".zshrc"
+        base.parent.mkdir()
+        base.write_text("# base config\nexport FOO=1\n", encoding="utf-8")
+
+        org = tmp_path / "org" / ".zshrc"
+        org.parent.mkdir()
+        org.write_text("export BAR=2\n", encoding="utf-8")
+
+        dest = tmp_path / "dest" / ".zshrc"
+        dest.parent.mkdir()
+
+        _merge_concat(base, org, dest)
+
+        content = dest.read_text(encoding="utf-8")
+        assert "# base config" in content
+        assert "export FOO=1" in content
+        assert "# --- org overlay: org ---" in content
+        assert "export BAR=2" in content
+
+    def test_concat_without_base(self, tmp_path: Path) -> None:
+        base = tmp_path / "nonexistent" / ".zshrc"
+
+        org = tmp_path / "org" / ".zshrc"
+        org.parent.mkdir()
+        org.write_text("export BAR=2\n", encoding="utf-8")
+
+        dest = tmp_path / "dest" / ".zshrc"
+        dest.parent.mkdir()
+
+        _merge_concat(base, org, dest)
+
+        content = dest.read_text(encoding="utf-8")
+        assert "export BAR=2" in content
+
+
+class TestMergeGitconfig:
+    """Tests for _merge_gitconfig."""
+
+    def test_gitconfig_with_orgs(self, tmp_path: Path) -> None:
+        base = tmp_path / ".gitconfig"
+        base.write_text("[user]\n    name = Test\n", encoding="utf-8")
+
+        org1_path = tmp_path / "org1" / ".gitconfig"
+        org1_path.parent.mkdir()
+        org1_path.write_text("[core]\n    autocrlf = true\n", encoding="utf-8")
+
+        dest = tmp_path / "built" / ".gitconfig"
+        dest.parent.mkdir()
+
+        home = tmp_path / "home"
+        home.mkdir()
+
+        _merge_gitconfig(base, {"acme": org1_path}, dest, home)
+
+        content = dest.read_text(encoding="utf-8")
+        assert "[user]" in content
+        assert "[include]" in content
+        assert "path = ~/.gitconfig.d/acme" in content
+
+        # Verify the org file was copied.
+        assert (home / ".gitconfig.d" / "acme").exists()
+
+    def test_gitconfig_multiple_orgs(self, tmp_path: Path) -> None:
+        base = tmp_path / ".gitconfig"
+        base.write_text("[user]\n    name = Test\n", encoding="utf-8")
+
+        org_paths: dict[str, Path] = {}
+        for org_name in ("alpha", "beta"):
+            p = tmp_path / org_name / ".gitconfig"
+            p.parent.mkdir()
+            p.write_text(f"[{org_name}]\n    key = val\n", encoding="utf-8")
+            org_paths[org_name] = p
+
+        dest = tmp_path / "built" / ".gitconfig"
+        dest.parent.mkdir()
+
+        home = tmp_path / "home"
+        home.mkdir()
+
+        _merge_gitconfig(base, org_paths, dest, home)
+
+        content = dest.read_text(encoding="utf-8")
+        assert "path = ~/.gitconfig.d/alpha" in content
+        assert "path = ~/.gitconfig.d/beta" in content
+
+
+class TestMergeJson:
+    """Tests for _merge_json."""
+
+    def test_deep_merge(self, tmp_path: Path) -> None:
+        base = tmp_path / "base.json"
+        base.write_text(json.dumps({"a": 1, "nested": {"x": 10, "y": 20}}), encoding="utf-8")
+
+        org = tmp_path / "org.json"
+        org.write_text(json.dumps({"b": 2, "nested": {"y": 99, "z": 30}}), encoding="utf-8")
+
+        dest = tmp_path / "merged.json"
+
+        _merge_json(base, org, dest)
+
+        result = json.loads(dest.read_text(encoding="utf-8"))
+        assert result["a"] == 1
+        assert result["b"] == 2
+        assert result["nested"]["x"] == 10
+        assert result["nested"]["y"] == 99  # org wins
+        assert result["nested"]["z"] == 30
+
+    def test_no_base(self, tmp_path: Path) -> None:
+        base = tmp_path / "nonexistent.json"
+
+        org = tmp_path / "org.json"
+        org.write_text(json.dumps({"key": "value"}), encoding="utf-8")
+
+        dest = tmp_path / "merged.json"
+
+        _merge_json(base, org, dest)
+
+        result = json.loads(dest.read_text(encoding="utf-8"))
+        assert result == {"key": "value"}
+
+    def test_malformed_json_raises(self, tmp_path: Path) -> None:
+        base = tmp_path / "base.json"
+        base.write_text(json.dumps({"a": 1}), encoding="utf-8")
+
+        org = tmp_path / "org.json"
+        org.write_text("{not valid json!!!", encoding="utf-8")
+
+        dest = tmp_path / "merged.json"
+
+        with pytest.raises(RuntimeError, match=str(org)):
+            _merge_json(base, org, dest)
+
+
+class TestMergeYaml:
+    """Tests for _merge_yaml."""
+
+    def test_deep_merge(self, tmp_path: Path) -> None:
+        base = tmp_path / "base.yaml"
+        base.write_text(yaml.dump({"a": 1, "nested": {"x": 10, "y": 20}}), encoding="utf-8")
+
+        org = tmp_path / "org.yaml"
+        org.write_text(yaml.dump({"b": 2, "nested": {"y": 99, "z": 30}}), encoding="utf-8")
+
+        dest = tmp_path / "merged.yaml"
+
+        _merge_yaml(base, org, dest)
+
+        result = yaml.safe_load(dest.read_text(encoding="utf-8"))
+        assert result["a"] == 1
+        assert result["b"] == 2
+        assert result["nested"]["x"] == 10
+        assert result["nested"]["y"] == 99
+        assert result["nested"]["z"] == 30
+
+    def test_no_base(self, tmp_path: Path) -> None:
+        base = tmp_path / "nonexistent.yaml"
+
+        org = tmp_path / "org.yaml"
+        org.write_text(yaml.dump({"key": "value"}), encoding="utf-8")
+
+        dest = tmp_path / "merged.yaml"
+
+        _merge_yaml(base, org, dest)
+
+        result = yaml.safe_load(dest.read_text(encoding="utf-8"))
+        assert result == {"key": "value"}
+
+    def test_malformed_yaml_raises(self, tmp_path: Path) -> None:
+        base = tmp_path / "base.yaml"
+        base.write_text(yaml.dump({"a": 1}), encoding="utf-8")
+
+        org = tmp_path / "org.yaml"
+        org.write_text(":\n  - :\n    bad:: yaml::: {{{\n", encoding="utf-8")
+
+        dest = tmp_path / "merged.yaml"
+
+        with pytest.raises(RuntimeError, match=str(org)):
+            _merge_yaml(base, org, dest)
+
+    def test_yaml_to_none_treated_as_empty(self, tmp_path: Path) -> None:
+        base = tmp_path / "base.yaml"
+        base.write_text(yaml.dump({"a": 1, "nested": {"x": 10}}), encoding="utf-8")
+
+        org = tmp_path / "org.yaml"
+        org.write_text("---\n", encoding="utf-8")
+
+        dest = tmp_path / "merged.yaml"
+
+        _merge_yaml(base, org, dest)
+
+        result = yaml.safe_load(dest.read_text(encoding="utf-8"))
+        assert result["a"] == 1
+        assert result["nested"]["x"] == 10
+
+
+def _setup_dotfiles(tmp_path: Path, orgs: list[str]) -> LoadoutConfig:
+    """Create a temp directory structure with base and org dotfiles."""
+    config = LoadoutConfig(user="testuser", orgs=orgs, base_dir=tmp_path)
+
+    # Create base dotfiles.
+    base_dir = config.dotfiles_dir / "dotfiles" / "base"
+    base_dir.mkdir(parents=True)
+
+    (base_dir / ".zshrc").write_text("# base zshrc\n", encoding="utf-8")
+    (base_dir / ".gitconfig").write_text("[user]\n    name = Base\n", encoding="utf-8")
+    (base_dir / "settings.json").write_text(
+        json.dumps({"editor": "vim", "theme": "dark"}), encoding="utf-8"
+    )
+    (base_dir / "config.yaml").write_text(
+        yaml.dump({"level": 1, "opts": {"a": True}}), encoding="utf-8"
+    )
+    (base_dir / ".vimrc").write_text("set number\n", encoding="utf-8")
+
+    # Create org dotfiles.
+    for org in orgs:
+        org_dir = config.dotfiles_private_dir / "dotfiles" / "orgs" / org
+        org_dir.mkdir(parents=True)
+
+        (org_dir / ".zshrc").write_text(f"# {org} zshrc\n", encoding="utf-8")
+        (org_dir / ".gitconfig").write_text(f"[core]\n    org = {org}\n", encoding="utf-8")
+        (org_dir / "settings.json").write_text(
+            json.dumps({"theme": "light", "org": org}), encoding="utf-8"
+        )
+        (org_dir / "config.yaml").write_text(yaml.dump({"opts": {"b": False}}), encoding="utf-8")
+        (org_dir / ".vimrc").write_text(f'" {org} vimrc\n', encoding="utf-8")
+
+    return config
+
+
+class TestBuildDotfiles:
+    """Integration tests for build_dotfiles."""
+
+    def test_full_build(self, tmp_path: Path) -> None:
+        config = _setup_dotfiles(tmp_path, ["acme"])
+
+        build_dotfiles(config)
+
+        # Verify files were installed to home directory.
+        assert (tmp_path / ".zshrc").exists()
+        assert (tmp_path / ".gitconfig").exists()
+        assert (tmp_path / "settings.json").exists()
+        assert (tmp_path / "config.yaml").exists()
+        assert (tmp_path / ".vimrc").exists()
+
+        # Verify concat strategy.
+        zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
+        assert "# base zshrc" in zshrc
+        assert "# acme zshrc" in zshrc
+        assert "# --- org overlay:" in zshrc
+
+        # Verify gitconfig includes.
+        gitconfig = (tmp_path / ".gitconfig").read_text(encoding="utf-8")
+        assert "[user]" in gitconfig
+        assert "[include]" in gitconfig
+        assert "path = ~/.gitconfig.d/acme" in gitconfig
+
+        # Verify JSON deep merge.
+        json_data = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert json_data["editor"] == "vim"  # from base
+        assert json_data["theme"] == "light"  # org wins
+        assert json_data["org"] == "acme"
+
+        # Verify YAML deep merge.
+        yaml_data = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
+        assert yaml_data["level"] == 1  # from base
+        assert yaml_data["opts"]["a"] is True  # from base
+        assert yaml_data["opts"]["b"] is False  # from org
+
+        # Verify replace strategy.
+        vimrc = (tmp_path / ".vimrc").read_text(encoding="utf-8")
+        assert "acme vimrc" in vimrc
+        assert "set number" not in vimrc
+
+    def test_dry_run_does_not_modify(self, tmp_path: Path) -> None:
+        config = _setup_dotfiles(tmp_path, ["acme"])
+
+        build_dotfiles(config, dry_run=True)
+
+        # build_dir should not exist after dry run.
+        assert not config.build_dir.exists()
+        # No dotfiles installed.
+        assert not (tmp_path / ".zshrc").exists()
+
+    def test_build_no_orgs(self, tmp_path: Path) -> None:
+        config = _setup_dotfiles(tmp_path, [])
+
+        build_dotfiles(config)
+
+        # Base files should be installed directly.
+        assert (tmp_path / ".zshrc").exists()
+        zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
+        assert "# base zshrc" in zshrc
+        assert "org overlay" not in zshrc
+
+    def test_build_multiple_orgs(self, tmp_path: Path) -> None:
+        config = _setup_dotfiles(tmp_path, ["alpha", "beta"])
+
+        build_dotfiles(config)
+
+        # Both org includes should appear in gitconfig.
+        gitconfig = (tmp_path / ".gitconfig").read_text(encoding="utf-8")
+        assert "path = ~/.gitconfig.d/alpha" in gitconfig
+        assert "path = ~/.gitconfig.d/beta" in gitconfig
+
+        # Concat should show both orgs.
+        zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
+        assert "# alpha zshrc" in zshrc
+        assert "# beta zshrc" in zshrc
+
+    def test_build_clears_previous(self, tmp_path: Path) -> None:
+        config = _setup_dotfiles(tmp_path, ["acme"])
+
+        # Create a stale file in build_dir.
+        config.build_dir.mkdir(parents=True)
+        stale = config.build_dir / ".stale"
+        stale.write_text("old", encoding="utf-8")
+
+        build_dotfiles(config)
+
+        # Stale file should be gone.
+        assert not (config.build_dir / ".stale").exists()
