@@ -55,6 +55,16 @@ def run_display(mode: str | None = None, *, dry_run: bool = False) -> None:
     apply_display_profile(config, mode=mode, dry_run=dry_run)
 
 
+def run_init(user: str, orgs: list[str], *, dry_run: bool = False) -> None:
+    """Full machine bootstrap flow.
+
+    Delegates to :mod:`loadout.init`.
+    """
+    from loadout.init import run_init as _run_init
+
+    _run_init(user, orgs, dry_run=dry_run)
+
+
 def run_update() -> None:
     """Pull latest sources and rebuild configuration.
 
