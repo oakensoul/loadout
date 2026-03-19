@@ -1,0 +1,2 @@
+# base aliases
+alias ll="ls -la"

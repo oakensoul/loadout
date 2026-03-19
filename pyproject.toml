@@ -23,7 +23,7 @@ dev = [
 ]
 
 [project.scripts]
-loadout = "loadout.cli:cli"
+loadout = "loadout.cli:main"
 
 [tool.ruff]
 target-version = "py311"

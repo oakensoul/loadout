@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from loadout.exceptions import LoadoutCommandError
 from loadout.runner import run
 
 
@@ -51,18 +52,34 @@ class TestRunNormal:
 
     @patch("loadout.runner.subprocess.run")
     def test_run_check_raises_on_failure(self, mock_run: MagicMock) -> None:
-        """check=True causes CalledProcessError to propagate."""
-        mock_run.side_effect = subprocess.CalledProcessError(returncode=1, cmd=["false"])
+        """check=True wraps CalledProcessError as LoadoutCommandError."""
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=1, cmd=["false"], stderr="some error"
+        )
 
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(LoadoutCommandError, match="Command failed with exit code 1"):
             run(["false"], check=True)
 
     @patch("loadout.runner.subprocess.run")
+    def test_run_check_failure_captures_details(self, mock_run: MagicMock) -> None:
+        """LoadoutCommandError preserves exit code and stderr."""
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=42, cmd=["bad"], stderr="oops"
+        )
+
+        with pytest.raises(LoadoutCommandError) as exc_info:
+            run(["bad", "arg"], check=True)
+
+        assert exc_info.value.exit_code == 42
+        assert exc_info.value.stderr == "oops"
+        assert exc_info.value.cmd == "bad arg"
+
+    @patch("loadout.runner.subprocess.run")
     def test_run_file_not_found(self, mock_run: MagicMock) -> None:
-        """FileNotFoundError is re-raised with a descriptive message."""
+        """FileNotFoundError is wrapped as LoadoutCommandError."""
         mock_run.side_effect = FileNotFoundError("No such file or directory")
 
-        with pytest.raises(FileNotFoundError, match="Command not found: nosuchcmd"):
+        with pytest.raises(LoadoutCommandError, match="Command not found: nosuchcmd"):
             run(["nosuchcmd", "--help"])
 
     @patch("loadout.runner.subprocess.run")
