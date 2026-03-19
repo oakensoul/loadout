@@ -13,6 +13,11 @@ from loadout.cli import cli
 class TestCLIHelp:
     """Verify all commands are wired and produce valid help."""
 
+    def test_version_flag(self) -> None:
+        result = CliRunner().invoke(cli, ["--version"])
+        assert result.exit_code == 0
+        assert "loadout" in result.output
+
     def test_main_help(self) -> None:
         result = CliRunner().invoke(cli, ["--help"])
         assert result.exit_code == 0

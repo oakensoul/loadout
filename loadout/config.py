@@ -21,6 +21,8 @@ class LoadoutConfig:
     user: str = ""
     orgs: list[str] = field(default_factory=list)
     base_dir: Path | None = None
+    github_token_op_path: str = "op://Personal/GitHub Token/credential"
+    nvm_version: str = "0.40.1"
 
     @property
     def home(self) -> Path:
@@ -66,10 +68,13 @@ def load_config(base_dir: Path | None = None) -> LoadoutConfig:
     except tomllib.TOMLDecodeError as exc:
         raise LoadoutConfigError(f"Invalid TOML in {path}: {exc}") from exc
 
+    defaults = LoadoutConfig()
     return LoadoutConfig(
         user=data.get("user", ""),
         orgs=data.get("orgs", []),
         base_dir=base_dir,
+        github_token_op_path=data.get("github_token_op_path", defaults.github_token_op_path),
+        nvm_version=data.get("nvm_version", defaults.nvm_version),
     )
 
 
@@ -83,10 +88,14 @@ def save_config(config: LoadoutConfig) -> None:
 
     user = _toml_escape(config.user)
     orgs_str = ", ".join(f'"{_toml_escape(o)}"' for o in config.orgs)
+    op_path = _toml_escape(config.github_token_op_path)
+    nvm_ver = _toml_escape(config.nvm_version)
 
     lines: list[str] = [
         f'user = "{user}"',
         f"orgs = [{orgs_str}]",
+        f'github_token_op_path = "{op_path}"',
+        f'nvm_version = "{nvm_ver}"',
         "",  # trailing newline
     ]
 

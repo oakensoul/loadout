@@ -57,6 +57,7 @@ def _generate_ssh_key(
 def _register_ssh_key_with_github(
     ssh_pub_path: Path,
     *,
+    github_token_op_path: str,
     dry_run: bool = False,
 ) -> None:
     """Register the SSH public key with GitHub via 1Password + gh CLI."""
@@ -76,7 +77,7 @@ def _register_ssh_key_with_github(
         [
             "bash",
             "-c",
-            'op read "op://Personal/GitHub Token/credential" | gh auth login --with-token',
+            f'op read "{github_token_op_path}" | gh auth login --with-token',
         ],
         dry_run=dry_run,
     )
@@ -202,6 +203,7 @@ def run_init(
         "Register SSH key with GitHub",
         lambda: _register_ssh_key_with_github(
             ssh_key_path.with_suffix(".pub"),
+            github_token_op_path=config.github_token_op_path,
             dry_run=dry_run,
         ),
     )

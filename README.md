@@ -1,8 +1,12 @@
 # Loadout
 
-Machine configuration management CLI. Loadout orchestrates dotfile building,
-Homebrew, global package installs, and health checks across multiple user/org
-contexts.
+Machine configuration management for multi-context setups. If you maintain
+different dotfiles across personal machines, work laptops, and dev boxes — each
+with their own orgs, tools, and secrets — loadout gets a fresh machine from zero
+to fully configured in one command.
+
+Loadout orchestrates dotfile building, Homebrew, global package installs, and
+health checks across multiple user/org contexts.
 
 ## Prerequisites
 
@@ -100,8 +104,8 @@ loadout globals --dry-run
 
 ### `loadout display`
 
-Switch macOS display profile. Auto-detects connected displays when no mode
-is given.
+Switch macOS display profile (macOS only). Auto-detects connected displays
+when no mode is given. Gracefully skips on non-macOS platforms.
 
 ```bash
 loadout display              # auto-detect
@@ -132,7 +136,9 @@ Loadout merges `~/.dotfiles/dotfiles/base/` (public) with
 | `*.yaml`, `*.yml` | Deep merge | Recursive merge, org wins on conflict |
 | Everything else | Replace | Org file replaces base entirely |
 
-Output is staged to `~/.dotfiles/build/` then copied to `~/`. Idempotent — safe to re-run.
+Output is staged to `~/.dotfiles/build/` (via atomic temp-dir swap) then copied to `~/`.
+Existing files are backed up to `~/.dotfiles/backups/` before overwriting.
+Idempotent — safe to re-run.
 
 ### Repo Layout
 
@@ -149,9 +155,18 @@ Loadout stores its configuration in `~/.dotfiles/.loadout.toml`:
 ```toml
 user = "oakensoul"
 orgs = ["personal", "splash"]
+github_token_op_path = "op://Personal/GitHub Token/credential"
+nvm_version = "0.40.1"
 ```
 
-This is written by `loadout init` and read by all other commands.
+| Field | Default | Description |
+|-------|---------|-------------|
+| `user` | `""` | GitHub username — used for cloning dotfile repos |
+| `orgs` | `[]` | Org names whose overlays are applied during build |
+| `github_token_op_path` | `"op://Personal/GitHub Token/credential"` | 1Password path for GitHub token (used during `init`) |
+| `nvm_version` | `"0.40.1"` | NVM version to install via `loadout globals` |
+
+This file is written by `loadout init` and read by all other commands.
 
 ## Troubleshooting
 

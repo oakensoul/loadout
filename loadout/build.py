@@ -4,32 +4,42 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 
 import yaml
 
 from loadout.config import LoadoutConfig
 from loadout.exceptions import LoadoutBuildError
-from loadout.ui import section_header, status_line
+from loadout.ui import section_header, status_line, verbose_line
 
 # Files that use concatenation merge strategy.
 _CONCAT_FILES = frozenset({".zshrc", ".aliases", ".zprofile", ".zshenv"})
 
 
-def _get_merge_strategy(filename: str) -> str:
-    """Return the merge strategy name for a given filename.
+class MergeStrategy(StrEnum):
+    """Merge strategies for dotfile building."""
 
-    Returns one of: ``"concat"``, ``"gitconfig"``, ``"json"``, ``"yaml"``, or ``"replace"``.
-    """
+    CONCAT = "concat"
+    GITCONFIG = "gitconfig"
+    JSON = "json"
+    YAML = "yaml"
+    REPLACE = "replace"
+
+
+def _get_merge_strategy(filename: str) -> MergeStrategy:
+    """Return the merge strategy for a given filename."""
     if filename in _CONCAT_FILES:
-        return "concat"
+        return MergeStrategy.CONCAT
     if filename == ".gitconfig":
-        return "gitconfig"
+        return MergeStrategy.GITCONFIG
     if filename.endswith(".json"):
-        return "json"
+        return MergeStrategy.JSON
     if filename.endswith((".yaml", ".yml")):
-        return "yaml"
-    return "replace"
+        return MergeStrategy.YAML
+    return MergeStrategy.REPLACE
 
 
 def _merge_concat(base_path: Path, org_path: Path, dest_path: Path) -> None:
@@ -123,26 +133,28 @@ def _merge_yaml(base_path: Path, org_path: Path, dest_path: Path) -> None:
     dest_path.write_text(yaml.dump(merged, default_flow_style=False), encoding="utf-8")
 
 
-def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
-    """Build merged dotfiles from base and org layers.
-
-    Steps:
-    1. Clear and recreate ``build_dir``.
-    2. Copy all base files into ``build_dir``.
-    3. For each org, apply the appropriate merge strategy per file.
-    4. Copy built files from ``build_dir`` to the home directory.
-    """
-    home_dir = config.home
-    build_dir = config.build_dir
-    base_dir = config.dotfiles_dir / "dotfiles" / "base"
-    private_dir = config.dotfiles_private_dir / "dotfiles" / "orgs"
-
-    section_header("build")
-
-    if dry_run:
-        status_line(">>", "dry-run", "no files will be modified")
+def _backup_file(dest: Path, backup_dir: Path) -> None:
+    """Create a timestamped backup of *dest* in *backup_dir* if it exists."""
+    if not dest.exists():
         return
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+    backup_path = backup_dir / f"{dest.name}.{stamp}"
+    shutil.copy2(dest, backup_path)
+    verbose_line(f"backed up {dest.name} → {backup_path}")
 
+
+def _build_into(
+    build_dir: Path,
+    base_dir: Path,
+    private_dir: Path,
+    home_dir: Path,
+    orgs: list[str],
+) -> None:
+    """Run the merge pipeline into *build_dir* (Steps 1–3).
+
+    Separated from install so we can build into a temp dir for atomicity.
+    """
     # Step 1: Clear and recreate build_dir.
     if build_dir.exists():
         shutil.rmtree(build_dir)
@@ -156,10 +168,9 @@ def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
                 status_line(">>", "base", src.name)
 
     # Step 3: Apply org overlays.
-    # Collect gitconfig paths across all orgs for the gitconfig strategy.
     gitconfig_org_paths: dict[str, Path] = {}
 
-    for org in config.orgs:
+    for org in orgs:
         org_dir = private_dir / org
         if not org_dir.exists():
             continue
@@ -171,26 +182,25 @@ def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
             strategy = _get_merge_strategy(org_file.name)
             dest = build_dir / org_file.name
 
-            if strategy == "concat":
+            if strategy is MergeStrategy.CONCAT:
                 accumulated = build_dir / org_file.name
                 _merge_concat(accumulated, org_file, dest)
                 status_line(">>", f"concat ({org})", org_file.name)
 
-            elif strategy == "gitconfig":
+            elif strategy is MergeStrategy.GITCONFIG:
                 gitconfig_org_paths[org] = org_file
 
-            elif strategy == "json":
+            elif strategy is MergeStrategy.JSON:
                 accumulated = build_dir / org_file.name
                 _merge_json(accumulated, org_file, dest)
                 status_line(">>", f"json ({org})", org_file.name)
 
-            elif strategy == "yaml":
+            elif strategy is MergeStrategy.YAML:
                 accumulated = build_dir / org_file.name
                 _merge_yaml(accumulated, org_file, dest)
                 status_line(">>", f"yaml ({org})", org_file.name)
 
-            else:
-                # replace strategy
+            elif strategy is MergeStrategy.REPLACE:
                 shutil.copy2(org_file, dest)
                 status_line(">>", f"replace ({org})", org_file.name)
 
@@ -205,9 +215,46 @@ def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
         )
         status_line(">>", "gitconfig", ".gitconfig")
 
-    # Step 4: Copy built files to home directory.
+
+def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
+    """Build merged dotfiles from base and org layers.
+
+    Steps:
+    1. Build into a temporary directory for atomicity.
+    2. Swap the temp dir to the final ``build_dir``.
+    3. Backup existing home files, then install from ``build_dir``.
+    """
+    home_dir = config.home
+    build_dir = config.build_dir
+    base_dir = config.dotfiles_dir / "dotfiles" / "base"
+    private_dir = config.dotfiles_private_dir / "dotfiles" / "orgs"
+    backup_dir = config.dotfiles_dir / "backups"
+
+    section_header("build")
+
+    if dry_run:
+        status_line(">>", "dry-run", "no files will be modified")
+        return
+
+    # Build into a temp directory first for atomic swap.
+    tmp_build = Path(tempfile.mkdtemp(prefix="loadout-build-", dir=config.dotfiles_dir))
+    try:
+        _build_into(tmp_build, base_dir, private_dir, home_dir, config.orgs)
+
+        # Atomic swap: replace build_dir with the temp dir.
+        if build_dir.exists():
+            shutil.rmtree(build_dir)
+        tmp_build.rename(build_dir)
+    except BaseException:
+        # Clean up temp dir on any failure.
+        if tmp_build.exists():
+            shutil.rmtree(tmp_build)
+        raise
+
+    # Step 4: Backup existing files, then install from build_dir.
     for built_file in sorted(build_dir.iterdir()):
         if built_file.is_file():
             dest = home_dir / built_file.name
+            _backup_file(dest, backup_dir)
             shutil.copy2(built_file, dest)
             status_line(">>", "install", built_file.name)
