@@ -86,3 +86,50 @@ class TestRunDisplay:
 
         mock_load_config.assert_called_once()
         mock_apply_display.assert_called_once_with(sentinel_config, mode="solo", dry_run=True)
+
+
+class TestRunInit:
+    """Tests for run_init delegation."""
+
+    @patch("loadout.init.run_init")
+    def test_run_init_delegates(self, mock_init: MagicMock) -> None:
+        core.run_init("testuser", ["org1"], dry_run=True)
+        mock_init.assert_called_once_with("testuser", ["org1"], dry_run=True)
+
+
+class TestRunUpdate:
+    """Tests for run_update delegation."""
+
+    @patch("loadout.update.run_update")
+    @patch("loadout.config.load_config")
+    def test_run_update_delegates(
+        self,
+        mock_load_config: MagicMock,
+        mock_update: MagicMock,
+    ) -> None:
+        sentinel_config = object()
+        mock_load_config.return_value = sentinel_config
+
+        core.run_update(dry_run=True)
+
+        mock_load_config.assert_called_once()
+        mock_update.assert_called_once_with(sentinel_config, dry_run=True)
+
+
+class TestRunUpgrade:
+    """Tests for run_upgrade delegation."""
+
+    @patch("loadout.update.run_upgrade")
+    @patch("loadout.config.load_config")
+    def test_run_upgrade_delegates(
+        self,
+        mock_load_config: MagicMock,
+        mock_upgrade: MagicMock,
+    ) -> None:
+        sentinel_config = object()
+        mock_load_config.return_value = sentinel_config
+
+        core.run_upgrade(dry_run=True)
+
+        mock_load_config.assert_called_once()
+        mock_upgrade.assert_called_once_with(sentinel_config, dry_run=True)
