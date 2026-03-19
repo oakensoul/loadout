@@ -1,8 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025 Robert Gunnar Johnson Jr.
 """Dotfile merge engine — build final dotfiles from base + org layers."""
 
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 from datetime import UTC, datetime
@@ -133,8 +136,26 @@ def _merge_yaml(base_path: Path, org_path: Path, dest_path: Path) -> None:
     dest_path.write_text(yaml.dump(merged, default_flow_style=False), encoding="utf-8")
 
 
+def _safe_path(path: Path, allowed_parent: Path) -> Path:
+    """Resolve *path* and verify it lives under *allowed_parent*.
+
+    Raises LoadoutBuildError if the resolved path escapes *allowed_parent*
+    (e.g. via symlinks or ``..`` components).
+    """
+    resolved = path.resolve()
+    parent_resolved = allowed_parent.resolve()
+    if not str(resolved).startswith(str(parent_resolved) + os.sep) and resolved != parent_resolved:
+        raise LoadoutBuildError(
+            f"Path {path} resolves to {resolved}, which is outside {parent_resolved}"
+        )
+    return resolved
+
+
 def _backup_file(dest: Path, backup_dir: Path) -> None:
     """Create a timestamped backup of *dest* in *backup_dir* if it exists."""
+    if dest.is_symlink():
+        verbose_line(f"skipping backup of symlink {dest.name}")
+        return
     if not dest.exists():
         return
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -160,9 +181,12 @@ def _build_into(
         shutil.rmtree(build_dir)
     build_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 2: Copy base files into build_dir.
+    # Step 2: Copy base files into build_dir (skip symlinks).
     if base_dir.exists():
         for src in sorted(base_dir.iterdir()):
+            if src.is_symlink():
+                verbose_line(f"skipping symlink in base: {src.name}")
+                continue
             if src.is_file():
                 shutil.copy2(src, build_dir / src.name)
                 status_line(">>", "base", src.name)
@@ -176,6 +200,9 @@ def _build_into(
             continue
 
         for org_file in sorted(org_dir.iterdir()):
+            if org_file.is_symlink():
+                verbose_line(f"skipping symlink in org {org}: {org_file.name}")
+                continue
             if not org_file.is_file():
                 continue
 
@@ -255,6 +282,7 @@ def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     for built_file in sorted(build_dir.iterdir()):
         if built_file.is_file():
             dest = home_dir / built_file.name
+            _safe_path(dest, home_dir)
             _backup_file(dest, backup_dir)
             shutil.copy2(built_file, dest)
             status_line(">>", "install", built_file.name)
