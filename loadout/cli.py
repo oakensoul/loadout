@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from importlib.metadata import version
 
 import click
 
@@ -10,7 +11,16 @@ from loadout.exceptions import LoadoutCommandError, LoadoutError
 from loadout.ui import error_panel, is_verbose, set_verbose
 
 
+def _get_version() -> str:
+    """Return the installed package version."""
+    try:
+        return version("oakensoul-loadout")
+    except Exception:  # noqa: BLE001
+        return "0.0.0-dev"
+
+
 @click.group()
+@click.version_option(version=_get_version(), prog_name="loadout")
 @click.option(
     "--dry-run", is_flag=True, default=False, help="Show what would be done without executing."
 )
@@ -64,7 +74,7 @@ def main() -> None:
 
 
 @cli.command()
-@click.option("--user", required=True, help="GitHub username for dotfile config.")
+@click.option("--user", required=True, help="GitHub username (owner of dotfiles repos).")
 @click.option("--orgs", required=True, multiple=True, help="Org names (repeat for multiple).")
 @click.pass_context
 def init(ctx: click.Context, user: str, orgs: tuple[str, ...]) -> None:

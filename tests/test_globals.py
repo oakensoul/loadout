@@ -159,7 +159,7 @@ def test_install_pip_globals_installs_missing(mock_run: MagicMock) -> None:
     mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="")
     install_pip_globals(["black"])
     assert mock_run.call_count == 2
-    mock_run.assert_any_call(["pip", "install", "black"], dry_run=False)
+    mock_run.assert_any_call(["pip", "install", "--user", "black"], dry_run=False)
 
 
 # ---------------------------------------------------------------------------

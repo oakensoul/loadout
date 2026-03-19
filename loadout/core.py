@@ -5,11 +5,21 @@ aida-loadout-plugin) should import. It delegates to the specific
 command modules and should not contain business logic itself.
 """
 
+__all__ = [
+    "check_health",
+    "run_build",
+    "run_display",
+    "run_globals",
+    "run_init",
+    "run_update",
+    "run_upgrade",
+]
+
 
 def check_health() -> None:
-    """Run all health checks and return a summary.
+    """Run all health checks and display a summary.
 
-    Delegates to :mod:`loadout.check` once implemented.
+    Delegates to :mod:`loadout.check`.
     """
     from loadout.check import render_checks, run_checks
     from loadout.config import load_config
