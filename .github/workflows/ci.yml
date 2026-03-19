@@ -14,6 +14,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-attribution:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for AI co-authorship attribution
+        run: |
+          MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} HEAD)
+          if git log "$MERGE_BASE..HEAD" --format='%B' | grep -iE '^Co-Authored-By:.*\b(claude|anthropic|openai|chatgpt|copilot|gemini|ai\b)'; then
+            echo "::error::Found AI co-authorship attribution in commit messages. Remove Co-Authored-By trailers referencing AI tools."
+            exit 1
+          fi
+          echo "No AI attribution found — clean."
+
   ci:
     strategy:
       fail-fast: false
