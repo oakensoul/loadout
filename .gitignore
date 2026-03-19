@@ -35,3 +35,16 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets / credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.secret
+*.secrets
+*.token
+*_rsa
+*_dsa
+credentials*

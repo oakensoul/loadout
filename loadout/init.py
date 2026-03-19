@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025 Robert Gunnar Johnson Jr.
 """Full machine bootstrap flow."""
 
 from __future__ import annotations
 
+import shlex
 import shutil
 import socket
 from pathlib import Path
@@ -73,11 +76,12 @@ def _register_ssh_key_with_github(
         return
 
     # Authenticate gh with a token from 1Password via shell pipeline
+    safe_path = shlex.quote(github_token_op_path)
     runner.run(
         [
             "bash",
             "-c",
-            f'op read "{github_token_op_path}" | gh auth login --with-token',
+            f"op read {safe_path} | gh auth login --with-token",
         ],
         dry_run=dry_run,
     )

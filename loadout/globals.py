@@ -1,11 +1,15 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025 Robert Gunnar Johnson Jr.
 """Non-Homebrew global package installation."""
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
 from loadout.config import LoadoutConfig
+from loadout.exceptions import LoadoutConfigError
 from loadout.runner import run
 from loadout.ui import run_step, section_header, status_line
 
@@ -27,11 +31,15 @@ def ensure_nvm_node(config: LoadoutConfig, *, dry_run: bool = False) -> None:
         return
 
     if not nvm_dir.exists():
+        if not re.match(r"^\d+\.\d+\.\d+$", nvm_version):
+            raise LoadoutConfigError(
+                f"Invalid nvm_version {nvm_version!r}: must be in X.Y.Z format"
+            )
         run(
             [
                 "bash",
                 "-c",
-                "curl --fail -o-"
+                "curl --fail --proto =https -o-"
                 f" https://raw.githubusercontent.com/nvm-sh/nvm/v{nvm_version}/install.sh"
                 " | bash",
             ],
