@@ -39,5 +39,8 @@ jobs:
       - name: Run tests
         run: pytest
 
+      - name: Upgrade pip and setuptools
+        run: pip install --upgrade pip setuptools
+
       - name: Audit dependencies
         run: pip-audit
