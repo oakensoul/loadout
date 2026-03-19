@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     strategy:
@@ -16,13 +23,16 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+
+      - name: Upgrade pip and setuptools
+        run: pip install --upgrade pip setuptools
 
       - name: Install dependencies
         run: pip install -e ".[dev]"
@@ -39,8 +49,10 @@ jobs:
       - name: Run tests
         run: pytest
 
-      - name: Upgrade pip and setuptools
-        run: pip install --upgrade pip setuptools
-
       - name: Audit dependencies
         run: pip-audit
+
+      - name: Verify package builds
+        run: |
+          python -m build
+          twine check dist/*

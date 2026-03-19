@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025 Robert Gunnar Johnson Jr.
 """Shell command runner with dry-run support."""
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ def run(
     verbose_line(f"$ {display_cmd}")
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603 — cmd is list-form, no shell=True
             cmd,
             check=check,
             stdout=subprocess.PIPE if capture else None,

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025 Robert Gunnar Johnson Jr.
 """Integration tests using fixture dotfile repos.
 
 These tests exercise the full merge pipeline against real fixture files
