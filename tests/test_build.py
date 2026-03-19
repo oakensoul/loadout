@@ -17,6 +17,7 @@ from loadout.build import (
     build_dotfiles,
 )
 from loadout.config import LoadoutConfig
+from loadout.exceptions import LoadoutBuildError
 
 
 class TestGetMergeStrategy:
@@ -178,7 +179,7 @@ class TestMergeJson:
 
         dest = tmp_path / "merged.json"
 
-        with pytest.raises(RuntimeError, match=str(org)):
+        with pytest.raises(LoadoutBuildError, match=str(org)):
             _merge_json(base, org, dest)
 
 
@@ -225,7 +226,7 @@ class TestMergeYaml:
 
         dest = tmp_path / "merged.yaml"
 
-        with pytest.raises(RuntimeError, match=str(org)):
+        with pytest.raises(LoadoutBuildError, match=str(org)):
             _merge_yaml(base, org, dest)
 
     def test_yaml_to_none_treated_as_empty(self, tmp_path: Path) -> None:
