@@ -1,0 +1,3 @@
+opts:
+  pager: more
+  widgets_flag: true

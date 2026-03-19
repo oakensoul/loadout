@@ -132,6 +132,18 @@ class TestBuildIntegration:
         assert data["theme"] == "solarized"  # widgets wins over acme's "light"
         assert data["org"] == "widgets"  # widgets wins over acme
 
+    def test_multiple_orgs_yaml_layered_merge(self, tmp_path: Path) -> None:
+        """Second org's YAML values override first org's on conflict."""
+        config = _setup_from_fixtures(tmp_path, ["acme", "widgets"])
+        build_dotfiles(config)
+
+        data = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
+        assert data["level"] == 1  # base survives
+        assert data["opts"]["color"] is True  # base survives
+        assert data["opts"]["pager"] == "more"  # widgets wins over acme's "bat"
+        assert data["opts"]["acme_flag"] is True  # acme survives (widgets doesn't override)
+        assert data["opts"]["widgets_flag"] is True  # from widgets
+
     def test_build_creates_build_dir(self, tmp_path: Path) -> None:
         """Build dir is created and contains intermediate files."""
         config = _setup_from_fixtures(tmp_path, ["acme"])
