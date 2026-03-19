@@ -14,9 +14,7 @@ from loadout.ui import error_panel, is_verbose, set_verbose
 @click.option(
     "--dry-run", is_flag=True, default=False, help="Show what would be done without executing."
 )
-@click.option(
-    "--verbose", "-v", is_flag=True, default=False, help="Increase output detail."
-)
+@click.option("--verbose", "-v", is_flag=True, default=False, help="Increase output detail.")
 @click.pass_context
 def cli(ctx: click.Context, dry_run: bool, verbose: bool) -> None:
     """Loadout — machine configuration management.
