@@ -23,7 +23,7 @@ class LoadoutConfig:
     user: str = ""
     orgs: list[str] = field(default_factory=list)
     base_dir: Path | None = None
-    github_token_op_path: str = "op://Personal/GitHub Token/credential"
+    github_token_op_path: str = "op://Personal/GitHub Token/credential"  # noqa: S105 — 1Password reference path, not a password
     nvm_version: str = "0.40.1"
 
     @property
