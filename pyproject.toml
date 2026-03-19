@@ -38,6 +38,7 @@ Issues = "https://github.com/oakensoul/loadout/issues"
 [project.optional-dependencies]
 dev = [
     "build>=1.0",
+    "cyclonedx-bom>=4.0",
     "mypy>=1.10",
     "pip-audit>=2.7",
     "pytest>=7.0",
