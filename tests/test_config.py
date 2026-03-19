@@ -86,3 +86,25 @@ class TestSaveConfig:
 
         assert loaded.user == 'has"quote'
         assert loaded.orgs == ["back\\slash", 'more"quotes']
+
+    def test_round_trip_new_fields(self, tmp_path: Path) -> None:
+        """New config fields (github_token_op_path, nvm_version) round-trip correctly."""
+        cfg = LoadoutConfig(
+            user="testuser",
+            orgs=["acme"],
+            base_dir=tmp_path,
+            github_token_op_path="op://Work/GitHub/token",
+            nvm_version="0.41.0",
+        )
+        save_config(cfg)
+
+        loaded = load_config(base_dir=tmp_path)
+
+        assert loaded.github_token_op_path == "op://Work/GitHub/token"
+        assert loaded.nvm_version == "0.41.0"
+
+    def test_defaults_for_new_fields(self, tmp_path: Path) -> None:
+        """New config fields have sensible defaults when not in the TOML file."""
+        cfg = LoadoutConfig(user="testuser", orgs=[], base_dir=tmp_path)
+        assert cfg.github_token_op_path == "op://Personal/GitHub Token/credential"
+        assert cfg.nvm_version == "0.40.1"

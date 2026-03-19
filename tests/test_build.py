@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
 
 from loadout.build import (
+    MergeStrategy,
+    _backup_file,
     _get_merge_strategy,
     _merge_concat,
     _merge_gitconfig,
@@ -20,30 +23,42 @@ from loadout.config import LoadoutConfig
 from loadout.exceptions import LoadoutBuildError
 
 
-class TestGetMergeStrategy:
-    """Tests for _get_merge_strategy."""
+class TestMergeStrategy:
+    """Tests for MergeStrategy enum and _get_merge_strategy."""
+
+    def test_enum_values(self) -> None:
+        assert MergeStrategy.CONCAT == "concat"
+        assert MergeStrategy.GITCONFIG == "gitconfig"
+        assert MergeStrategy.JSON == "json"
+        assert MergeStrategy.YAML == "yaml"
+        assert MergeStrategy.REPLACE == "replace"
 
     def test_concat_files(self) -> None:
-        assert _get_merge_strategy(".zshrc") == "concat"
-        assert _get_merge_strategy(".aliases") == "concat"
-        assert _get_merge_strategy(".zprofile") == "concat"
-        assert _get_merge_strategy(".zshenv") == "concat"
+        assert _get_merge_strategy(".zshrc") is MergeStrategy.CONCAT
+        assert _get_merge_strategy(".aliases") is MergeStrategy.CONCAT
+        assert _get_merge_strategy(".zprofile") is MergeStrategy.CONCAT
+        assert _get_merge_strategy(".zshenv") is MergeStrategy.CONCAT
 
     def test_gitconfig(self) -> None:
-        assert _get_merge_strategy(".gitconfig") == "gitconfig"
+        assert _get_merge_strategy(".gitconfig") is MergeStrategy.GITCONFIG
 
     def test_json(self) -> None:
-        assert _get_merge_strategy("settings.json") == "json"
-        assert _get_merge_strategy(".prettierrc.json") == "json"
+        assert _get_merge_strategy("settings.json") is MergeStrategy.JSON
+        assert _get_merge_strategy(".prettierrc.json") is MergeStrategy.JSON
 
     def test_yaml(self) -> None:
-        assert _get_merge_strategy("config.yaml") == "yaml"
-        assert _get_merge_strategy("config.yml") == "yaml"
+        assert _get_merge_strategy("config.yaml") is MergeStrategy.YAML
+        assert _get_merge_strategy("config.yml") is MergeStrategy.YAML
 
     def test_replace(self) -> None:
-        assert _get_merge_strategy(".vimrc") == "replace"
-        assert _get_merge_strategy(".tmux.conf") == "replace"
-        assert _get_merge_strategy("somefile") == "replace"
+        assert _get_merge_strategy(".vimrc") is MergeStrategy.REPLACE
+        assert _get_merge_strategy(".tmux.conf") is MergeStrategy.REPLACE
+        assert _get_merge_strategy("somefile") is MergeStrategy.REPLACE
+
+    def test_str_comparison_works(self) -> None:
+        """StrEnum values can be compared with plain strings."""
+        assert _get_merge_strategy(".zshrc") == "concat"
+        assert _get_merge_strategy(".gitconfig") == "gitconfig"
 
 
 class TestMergeConcat:
@@ -371,3 +386,82 @@ class TestBuildDotfiles:
 
         # Stale file should be gone.
         assert not (config.build_dir / ".stale").exists()
+
+    def test_build_creates_backup(self, tmp_path: Path) -> None:
+        """Build should back up existing home files before overwriting."""
+        config = _setup_dotfiles(tmp_path, ["acme"])
+
+        # Pre-create a file that will be overwritten.
+        existing = tmp_path / ".zshrc"
+        existing.write_text("original content\n", encoding="utf-8")
+
+        build_dotfiles(config)
+
+        # A backup should exist in the backups directory.
+        backup_dir = config.dotfiles_dir / "backups"
+        assert backup_dir.exists()
+        backups = list(backup_dir.glob(".zshrc.*"))
+        assert len(backups) >= 1
+        assert backups[0].read_text(encoding="utf-8") == "original content\n"
+
+    def test_build_no_backup_for_new_files(self, tmp_path: Path) -> None:
+        """Build should not create backups for files that don't exist yet."""
+        config = _setup_dotfiles(tmp_path, ["acme"])
+
+        build_dotfiles(config)
+
+        backup_dir = config.dotfiles_dir / "backups"
+        # No backups for brand new installs.
+        if backup_dir.exists():
+            assert len(list(backup_dir.iterdir())) == 0
+
+
+class TestBackupFile:
+    """Tests for _backup_file helper."""
+
+    def test_backup_existing_file(self, tmp_path: Path) -> None:
+        src = tmp_path / "myfile"
+        src.write_text("hello", encoding="utf-8")
+        backup_dir = tmp_path / "backups"
+
+        _backup_file(src, backup_dir)
+
+        assert backup_dir.exists()
+        backups = list(backup_dir.glob("myfile.*"))
+        assert len(backups) == 1
+        assert backups[0].read_text(encoding="utf-8") == "hello"
+
+    def test_no_backup_for_missing_file(self, tmp_path: Path) -> None:
+        src = tmp_path / "nonexistent"
+        backup_dir = tmp_path / "backups"
+
+        _backup_file(src, backup_dir)
+
+        assert not backup_dir.exists()
+
+
+class TestAtomicBuildFailure:
+    """Tests for atomic build cleanup on failure."""
+
+    def test_temp_dir_cleaned_on_build_failure(self, tmp_path: Path) -> None:
+        """If _build_into raises, temp dir is cleaned and build_dir is untouched."""
+        config = _setup_dotfiles(tmp_path, ["acme"])
+
+        # Pre-populate build_dir so we can verify it survives.
+        config.build_dir.mkdir(parents=True)
+        sentinel = config.build_dir / ".sentinel"
+        sentinel.write_text("original", encoding="utf-8")
+
+        with (
+            patch("loadout.build._build_into", side_effect=RuntimeError("boom")),
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            build_dotfiles(config)
+
+        # build_dir should still have the original sentinel.
+        assert sentinel.exists()
+        assert sentinel.read_text(encoding="utf-8") == "original"
+
+        # No leftover temp dirs.
+        temp_dirs = list(config.dotfiles_dir.glob("loadout-build-*"))
+        assert temp_dirs == []
