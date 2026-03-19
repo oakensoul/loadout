@@ -133,10 +133,13 @@ class TestMainEntryPoint:
             assert exc_info.value.code == 130
 
     def test_loadout_error_shows_panel_and_exits_1(self) -> None:
-        with patch(
-            "loadout.cli.cli",
-            side_effect=LoadoutBuildError("bad merge"),
-        ), patch("loadout.cli.error_panel") as mock_panel:
+        with (
+            patch(
+                "loadout.cli.cli",
+                side_effect=LoadoutBuildError("bad merge"),
+            ),
+            patch("loadout.cli.error_panel") as mock_panel,
+        ):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 1
@@ -159,10 +162,13 @@ class TestMainEntryPoint:
 
     def test_verbose_includes_traceback_in_panel(self) -> None:
         ui.set_verbose(True)
-        with patch(
-            "loadout.cli.cli",
-            side_effect=LoadoutBuildError("bad merge"),
-        ), patch("loadout.cli.error_panel") as mock_panel:
+        with (
+            patch(
+                "loadout.cli.cli",
+                side_effect=LoadoutBuildError("bad merge"),
+            ),
+            patch("loadout.cli.error_panel") as mock_panel,
+        ):
             with pytest.raises(SystemExit):
                 main()
             body = mock_panel.call_args[0][1]

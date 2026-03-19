@@ -30,9 +30,7 @@ class TestLoadoutCommandError:
     """Verify LoadoutCommandError stores metadata."""
 
     def test_stores_cmd_and_exit_code(self) -> None:
-        exc = LoadoutCommandError(
-            "failed", cmd="brew update", exit_code=1, stderr="error output"
-        )
+        exc = LoadoutCommandError("failed", cmd="brew update", exit_code=1, stderr="error output")
         assert str(exc) == "failed"
         assert exc.cmd == "brew update"
         assert exc.exit_code == 1
