@@ -1,0 +1,3 @@
+opts:
+  pager: bat
+  acme_flag: true
