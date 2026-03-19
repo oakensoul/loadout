@@ -6,6 +6,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from loadout.exceptions import LoadoutConfigError
+
 
 def _toml_escape(s: str) -> str:
     """Escape a string for inclusion in a TOML double-quoted value."""
@@ -59,7 +61,10 @@ def load_config(base_dir: Path | None = None) -> LoadoutConfig:
     if not path.exists():
         return cfg
 
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        raise LoadoutConfigError(f"Invalid TOML in {path}: {exc}") from exc
 
     return LoadoutConfig(
         user=data.get("user", ""),

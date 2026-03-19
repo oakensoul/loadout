@@ -5,7 +5,8 @@ from __future__ import annotations
 import shlex
 import subprocess
 
-from loadout.ui import err_console
+from loadout.exceptions import LoadoutCommandError
+from loadout.ui import err_console, verbose_line
 
 
 def run(
@@ -19,16 +20,21 @@ def run(
 
     Args:
         cmd: Command to execute as a list of arguments.
-        check: If True, raise CalledProcessError on non-zero exit.
+        check: If True, raise LoadoutCommandError on non-zero exit.
         capture: If True, capture stdout and stderr.
         dry_run: If True, log the command but do not execute it.
 
     Returns:
         A CompletedProcess instance. In dry-run mode, returns a synthetic
         result with returncode=0 and empty stdout/stderr.
+
+    Raises:
+        LoadoutCommandError: When the command exits non-zero (and check=True)
+            or the command binary is not found.
     """
+    display_cmd = shlex.join(cmd)
+
     if dry_run:
-        display_cmd = shlex.join(cmd)
         err_console.print(f"[bold yellow][DRY-RUN][/bold yellow] {display_cmd}")
         return subprocess.CompletedProcess(
             args=cmd,
@@ -37,8 +43,10 @@ def run(
             stderr="",
         )
 
+    verbose_line(f"$ {display_cmd}")
+
     try:
-        return subprocess.run(
+        result = subprocess.run(
             cmd,
             check=check,
             stdout=subprocess.PIPE if capture else None,
@@ -46,4 +54,19 @@ def run(
             text=True,
         )
     except FileNotFoundError:
-        raise FileNotFoundError(f"Command not found: {cmd[0]}") from None
+        raise LoadoutCommandError(
+            f"Command not found: {cmd[0]}",
+            cmd=display_cmd,
+        ) from None
+    except subprocess.CalledProcessError as exc:
+        raise LoadoutCommandError(
+            f"Command failed with exit code {exc.returncode}: {display_cmd}",
+            cmd=display_cmd,
+            exit_code=exc.returncode,
+            stderr=exc.stderr or "",
+        ) from None
+
+    if result.stderr:
+        verbose_line(result.stderr.rstrip())
+
+    return result
