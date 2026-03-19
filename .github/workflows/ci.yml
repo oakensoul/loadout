@@ -22,14 +22,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for AI co-authorship attribution
+      - name: Check commit messages for AI attribution
         run: |
           MERGE_BASE=$(git merge-base origin/${{ github.base_ref }} HEAD)
           if git log "$MERGE_BASE..HEAD" --format='%B' | grep -iE '^Co-Authored-By:.*\b(claude|anthropic|openai|chatgpt|copilot|gemini|ai\b)'; then
             echo "::error::Found AI co-authorship attribution in commit messages. Remove Co-Authored-By trailers referencing AI tools."
             exit 1
           fi
-          echo "No AI attribution found — clean."
+          echo "Commit messages clean."
+
+      - name: Check PR description for AI attribution
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if echo "$PR_BODY" | grep -iE '(co-authored-by|generated with|powered by|assisted by).*(claude|anthropic|openai|chatgpt|copilot|gemini)'; then
+            echo "::error::Found AI attribution in PR description. Remove AI-generated attribution text from the PR body."
+            exit 1
+          fi
+          echo "PR description clean."
 
   ci:
     strategy:
