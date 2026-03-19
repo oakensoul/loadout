@@ -25,7 +25,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install build tooling
-        run: python -m pip install --upgrade pip build twine
+        run: python -m pip install --upgrade pip build twine cyclonedx-bom
 
       - name: Build sdist and wheel
         run: python -m build
@@ -33,10 +33,16 @@ jobs:
       - name: Check distributions
         run: twine check dist/*
 
+      - name: Generate SBOM
+        run: |
+          pip install -e .
+          cyclonedx-py environment -o sbom.json --output-format json
+          cyclonedx-py environment -o sbom.xml --output-format xml
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${{ github.ref_name }}" dist/* --generate-notes
+        run: gh release create "${{ github.ref_name }}" dist/* sbom.json sbom.xml --generate-notes
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@106e0b0b7c337fa67ed433972f777c6357f78598 # v1.13.0
