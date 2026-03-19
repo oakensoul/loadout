@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from io import StringIO
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -11,7 +12,7 @@ import pytest
 from click.testing import CliRunner
 
 from loadout import ui
-from loadout.cli import cli
+from loadout.cli import cli, main
 from loadout.exceptions import (
     LoadoutBuildError,
     LoadoutCommandError,
@@ -100,7 +101,6 @@ class TestCLIErrorHandling:
 
     @patch("loadout.core.run_build")
     def test_build_error_exits_nonzero(self, mock_build: MagicMock) -> None:
-        """LoadoutBuildError propagates and Click reports non-zero exit."""
         mock_build.side_effect = LoadoutBuildError("Malformed JSON in /tmp/bad.json")
         result = CliRunner().invoke(cli, ["build"])
         assert result.exit_code != 0
@@ -118,6 +118,83 @@ class TestCLIErrorHandling:
         mock_check.side_effect = LoadoutConfigError("Invalid TOML")
         result = CliRunner().invoke(cli, ["check"])
         assert result.exit_code != 0
+
+
+# ── main() entry point tests ───────────────────────────────────────────────
+
+
+class TestMainEntryPoint:
+    """Test the main() function directly to cover top-level error handling."""
+
+    def test_keyboard_interrupt_exits_130(self) -> None:
+        with patch("loadout.cli.cli", side_effect=KeyboardInterrupt):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 130
+
+    def test_loadout_error_shows_panel_and_exits_1(self) -> None:
+        with patch(
+            "loadout.cli.cli",
+            side_effect=LoadoutBuildError("bad merge"),
+        ), patch("loadout.cli.error_panel") as mock_panel:
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 1
+            mock_panel.assert_called_once()
+            assert "bad merge" in mock_panel.call_args[0][1]
+            assert mock_panel.call_args[0][0] == "Loadout Error"
+
+    def test_command_error_includes_stderr_in_panel(self) -> None:
+        exc = LoadoutCommandError(
+            "Command failed", cmd="brew update", exit_code=1, stderr="E: network timeout"
+        )
+        with (
+            patch("loadout.cli.cli", side_effect=exc),
+            patch("loadout.cli.error_panel") as mock_panel,
+            pytest.raises(SystemExit),
+        ):
+            main()
+        body = mock_panel.call_args[0][1]
+        assert "E: network timeout" in body
+
+    def test_verbose_includes_traceback_in_panel(self) -> None:
+        ui.set_verbose(True)
+        with patch(
+            "loadout.cli.cli",
+            side_effect=LoadoutBuildError("bad merge"),
+        ), patch("loadout.cli.error_panel") as mock_panel:
+            with pytest.raises(SystemExit):
+                main()
+            body = mock_panel.call_args[0][1]
+            assert "Traceback" in body or "LoadoutBuildError" in body
+
+    def test_unexpected_error_shows_panel(self) -> None:
+        with (
+            patch("loadout.cli.cli", side_effect=RuntimeError("oops")),
+            patch("loadout.cli.error_panel") as mock_panel,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            main()
+        assert exc_info.value.code == 1
+        assert mock_panel.call_args[0][0] == "Unexpected Error"
+        assert "oops" in mock_panel.call_args[0][1]
+
+    def test_click_exit_passes_through(self) -> None:
+        import click
+
+        with patch("loadout.cli.cli", side_effect=click.exceptions.Exit(0)):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+
+    def test_click_exception_shows_and_exits(self) -> None:
+        import click
+
+        exc = click.BadParameter("bad value")
+        with patch("loadout.cli.cli", side_effect=exc):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code != 0
 
 
 # ── Config error ────────────────────────────────────────────────────────────
@@ -147,11 +224,8 @@ class TestRunnerVerbose:
         monkeypatch: pytest.MonkeyPatch,
         captured_console: tuple[Console, StringIO],
     ) -> None:
-        import subprocess
-
         test_console, buf = captured_console
         monkeypatch.setattr(ui, "err_console", test_console)
-        # Also patch the runner's reference to err_console
         from loadout import runner
 
         monkeypatch.setattr(runner, "err_console", test_console)
@@ -167,3 +241,29 @@ class TestRunnerVerbose:
 
         output = buf.getvalue()
         assert "echo hello" in output
+
+    @patch("loadout.runner.subprocess.run")
+    def test_verbose_logs_stderr_output(
+        self,
+        mock_run: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        captured_console: tuple[Console, StringIO],
+    ) -> None:
+        """Runner logs stderr content when verbose and command produces stderr."""
+        test_console, buf = captured_console
+        monkeypatch.setattr(ui, "err_console", test_console)
+        from loadout import runner
+
+        monkeypatch.setattr(runner, "err_console", test_console)
+        monkeypatch.setattr(ui, "_verbose", True)
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["brew", "update"], returncode=0, stdout="", stderr="Warning: stale lockfile"
+        )
+
+        from loadout.runner import run
+
+        run(["brew", "update"])
+
+        output = buf.getvalue()
+        assert "Warning: stale lockfile" in output

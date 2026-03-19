@@ -53,18 +53,18 @@ def run(
             stderr=subprocess.PIPE,
             text=True,
         )
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
         raise LoadoutCommandError(
             f"Command not found: {cmd[0]}",
             cmd=display_cmd,
-        ) from None
+        ) from exc
     except subprocess.CalledProcessError as exc:
         raise LoadoutCommandError(
             f"Command failed with exit code {exc.returncode}: {display_cmd}",
             cmd=display_cmd,
             exit_code=exc.returncode,
             stderr=exc.stderr or "",
-        ) from None
+        ) from exc
 
     if result.stderr:
         verbose_line(result.stderr.rstrip())

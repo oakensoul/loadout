@@ -155,6 +155,9 @@ This is written by `loadout init` and read by all other commands.
 
 ## Troubleshooting
 
+For any issue, try running with `--verbose` first to see the exact commands
+being executed and their stderr output.
+
 **`loadout check` shows warnings:**
 Warnings are informational — they indicate optional tools that aren't installed.
 Errors indicate required tools that are missing.

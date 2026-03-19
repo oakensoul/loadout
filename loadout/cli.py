@@ -6,7 +6,7 @@ import sys
 
 import click
 
-from loadout.exceptions import LoadoutError
+from loadout.exceptions import LoadoutCommandError, LoadoutError
 from loadout.ui import error_panel, is_verbose, set_verbose
 
 
@@ -42,23 +42,25 @@ def main() -> None:
         exc.show()
         sys.exit(exc.exit_code)
     except LoadoutError as exc:
-        body = str(exc)
-        from loadout.exceptions import LoadoutCommandError
+        from rich.markup import escape
 
+        body = escape(str(exc))
         if isinstance(exc, LoadoutCommandError) and exc.stderr:
-            body += f"\n\n[dim]{exc.stderr.rstrip()}[/dim]"
+            body += f"\n\n[dim]{escape(exc.stderr.rstrip())}[/dim]"
         if is_verbose():
             import traceback
 
-            body += f"\n\n[dim]{traceback.format_exc().rstrip()}[/dim]"
+            body += f"\n\n[dim]{escape(traceback.format_exc().rstrip())}[/dim]"
         error_panel("Loadout Error", body)
         sys.exit(1)
     except Exception as exc:
-        body = str(exc)
+        from rich.markup import escape
+
+        body = escape(str(exc))
         if is_verbose():
             import traceback
 
-            body += f"\n\n[dim]{traceback.format_exc().rstrip()}[/dim]"
+            body += f"\n\n[dim]{escape(traceback.format_exc().rstrip())}[/dim]"
         error_panel("Unexpected Error", body)
         sys.exit(1)
 
