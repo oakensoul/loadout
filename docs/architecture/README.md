@@ -13,12 +13,12 @@ Loadout is a machine configuration management system — bigger than dotfiles, b
 ```
 Machine layer         →  loadout
   └── installs
-Python packages       →  devbox (core logic, CLI)
-                          canvas (ephemeral workspaces, org-aware)
+Python packages       →  devbox (core logic, CLI)              [planned]
+                          canvas (ephemeral workspaces)         [planned]
   └── exposed via
-AIDA plugins          →  aida-loadout-plugin (/loadout check, /loadout update)
-                          aida-devbox-plugin  (/devbox create, /devbox list)
-                          aida-canvas-plugin  (/canvas new, /canvas list)
+AIDA plugins          →  aida-loadout-plugin                   [planned]
+                          aida-devbox-plugin                    [planned]
+                          aida-canvas-plugin                    [planned]
   └── running on
 Claude Code layer     →  aida-core-plugin
 ```
@@ -50,8 +50,8 @@ The package contains the logic. `~/.dotfiles/` + `~/.dotfiles-private/` contain 
 Each user declares which orgs they load:
 
 ```bash
-loadout init --user=gunnar --orgs="personal mythical"
-loadout init --user=work   --orgs="splash"
+loadout init --user=gunnar --orgs=personal --orgs=mythical
+loadout init --user=work   --orgs=splash
 ```
 
 ---
@@ -59,7 +59,7 @@ loadout init --user=work   --orgs="splash"
 ## CLI Interface
 
 ```bash
-loadout init --user=<name> --orgs="<org1> <org2>"  # bootstrap a user
+loadout init --user=<name> --orgs=<org1> --orgs=<org2>  # bootstrap a user
 loadout update        # pull + build + brew bundle + globals (safe, idempotent)
 loadout upgrade       # everything in update + brew upgrade (intentional)
 loadout check         # health check — warn only, never mutates
@@ -76,22 +76,22 @@ loadout display solo        # force laptop-solo defaults
 ### `loadout init`
 
 1. Clone `~/.dotfiles` (public base) and `~/.dotfiles-private` (org config)
-2. Generate SSH key → register with GitHub via API
-3. Switch git remotes from HTTPS to SSH
-4. Run `loadout build` to merge dotfiles
-5. Run `brew bundle` for base + org Brewfiles
-6. Run `loadout globals` for non-Homebrew installs
-7. Apply macOS defaults via `macos/` scripts
-8. Install launch agent for display detection
-9. Write `~/.canvas/config` and `~/.devbox/` registry dirs
-10. Bootstrap AIDA plugins for this user
+2. Generate SSH key
+3. Register SSH key with GitHub via 1Password + gh CLI
+4. Switch git remotes from HTTPS to SSH
+5. Build dotfiles (merge base + org layers)
+6. Run `brew bundle` from `~/.dotfiles/Brewfile`
+7. Run `loadout globals` for non-Homebrew installs
+8. Apply macOS defaults via `macos/` scripts
+9. Install launch agent for display detection
+10. Save loadout config (`~/.dotfiles/.loadout.toml`)
 
 ### `loadout update`
 
 ```
 git pull ~/.dotfiles && git pull ~/.dotfiles-private
 loadout build
-brew update && brew bundle --all
+brew update && brew bundle --file=~/.dotfiles/Brewfile
 loadout globals
 ```
 
@@ -111,41 +111,33 @@ Merges `~/.dotfiles/dotfiles/base/` + `~/.dotfiles-private/dotfiles/orgs/<org>/`
 | YAML | Deep merge, org wins on conflict |
 | Unknown | Org replaces base |
 
-Output staged to `~/.dotfiles/build/`, then copied to `~/`. Idempotent — safe to re-run.
+Output staged to `~/.dotfiles/build/` via an atomic temp-dir-then-swap pattern, then copied to `~/`. Existing files are backed up to `~/.dotfiles/backups/` with UTC timestamps before overwriting. Idempotent — safe to re-run.
 
 ### `loadout globals`
 
 Installs non-Homebrew tools idempotently:
 
-- Claude Code: `curl -fsSL https://claude.ai/install.sh | bash`
+- Claude Code: `npm install -g @anthropic-ai/claude-code`
 - nvm + node LTS
 - pyenv + latest stable Python
 - npm globals and pip globals per org config
 
 ### `loadout check`
 
-Warn-only health check — never mutates anything:
+Warn-only health check — never mutates anything. Currently checks:
 
 ```
-🖥  ENVIRONMENT (oakensoul)
-✅ Homebrew
-✅ git (2.x.x)
-✅ nvm + node (lts)
-✅ pyenv + python (3.x.x)
-✅ 1Password CLI — vault reachable
-✅ GitHub SSH (oakensoul)
-✅ Claude Code (1.x.x)
-⚠️  AWS profile: side-project — credentials expired
-❌ Brewfile — 2 packages missing
-
-📦  DEVBOXES
-✅ devbox1 (splash-data) — reachable, last seen 2h ago
-⚠️  devbox2 (f1-fantasy)  — reachable, last seen 47d ago
-
-🎨  CANVAS
-✅ 2026-03-13-okr-planning (splash) — 2d ago
-⚠️  2026-02-01-electric-penguin (personal) — 39d ago
+✓  Homebrew       brew found on PATH
+✓  Git            git version 2.x.x
+!  Node.js        node not found on PATH
+✓  Python         Python 3.x.x
+✓  1Password CLI  op found on PATH
+✓  GitHub SSH     Hi oakensoul! ...
+✓  Claude Code    claude found on PATH
+✓  Brewfile       found at ~/.dotfiles/Brewfile
 ```
+
+Future checks (planned): devbox reachability, canvas staleness, AWS credential expiry, Brewfile diff.
 
 ---
 
@@ -234,13 +226,21 @@ SSH keys served via 1Password SSH agent — no private keys written to disk.
 
 ```
 loadout/
-├── __init__.py
-├── cli.py       # Click CLI entry point
-├── core.py      # importable by aida-loadout-plugin
-├── build.py     # dotfile merge logic
-├── globals.py   # non-Homebrew installs
-├── display.py   # macOS display profile switching
-└── check.py     # health check — warn only
+├── __init__.py      # package root
+├── brew.py          # shared Homebrew helpers
+├── build.py         # dotfile merge logic (MergeStrategy enum)
+├── check.py         # health check — warn only
+├── cli.py           # Click CLI entry point + main()
+├── config.py        # LoadoutConfig dataclass + TOML I/O
+├── core.py          # stable API facade for aida-loadout-plugin
+├── display.py       # macOS display profile switching
+├── exceptions.py    # custom exception hierarchy
+├── globals.py       # non-Homebrew installs (npm, pip, nvm, pyenv)
+├── init.py          # full machine bootstrap flow (10-step)
+├── py.typed         # PEP 561 marker
+├── runner.py        # shell runner with dry-run support
+├── ui.py            # Rich console helpers
+└── update.py        # update + upgrade commands
 ```
 
 ---

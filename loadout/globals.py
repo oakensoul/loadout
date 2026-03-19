@@ -9,8 +9,6 @@ from loadout.config import LoadoutConfig
 from loadout.runner import run
 from loadout.ui import run_step, section_header, status_line
 
-_NVM_VERSION = "0.40.1"
-
 
 def ensure_claude_code(*, dry_run: bool = False) -> None:
     """Install Claude Code CLI if not already present."""
@@ -23,6 +21,7 @@ def ensure_claude_code(*, dry_run: bool = False) -> None:
 def ensure_nvm_node(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """Install NVM and Node LTS if not already present."""
     nvm_dir = config.home / ".nvm"
+    nvm_version = config.nvm_version
     if nvm_dir.exists() and shutil.which("node") is not None:
         status_line("[green]✓[/green]", "NVM + Node", "already installed")
         return
@@ -33,7 +32,7 @@ def ensure_nvm_node(config: LoadoutConfig, *, dry_run: bool = False) -> None:
                 "bash",
                 "-c",
                 "curl --fail -o-"
-                f" https://raw.githubusercontent.com/nvm-sh/nvm/v{_NVM_VERSION}/install.sh"
+                f" https://raw.githubusercontent.com/nvm-sh/nvm/v{nvm_version}/install.sh"
                 " | bash",
             ],
             dry_run=dry_run,
@@ -91,7 +90,7 @@ def install_pip_globals(packages: list[str], *, dry_run: bool = False) -> None:
         if result.returncode == 0:
             status_line("[green]✓[/green]", f"pip: {package}", "already installed")
             continue
-        run(["pip", "install", package], dry_run=dry_run)
+        run(["pip", "install", "--user", package], dry_run=dry_run)
 
 
 def _read_package_list(path: Path) -> list[str]:
