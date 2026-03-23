@@ -147,8 +147,19 @@ def _apple_silicon_brew_exists(path: str) -> bool:
     return path == "/opt/homebrew/bin/brew"
 
 
+def _intel_brew_exists(path: str) -> bool:
+    """Simulate Intel Homebrew install for os.path.isfile mocking."""
+    return path == "/usr/local/bin/brew"
+
+
 class TestRunBrewPath:
     """Test Homebrew PATH injection for subprocesses."""
+
+    def setup_method(self) -> None:
+        """Clear the brew detection cache before each test."""
+        from loadout.runner import _detect_brew_bin
+
+        _detect_brew_bin.cache_clear()
 
     @patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}, clear=False)
     @patch(
@@ -208,6 +219,25 @@ class TestRunBrewPath:
 
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["env"] is None
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}, clear=False)
+    @patch(
+        "loadout.runner.os.path.isfile",
+        side_effect=_intel_brew_exists,
+    )
+    @patch("loadout.runner.subprocess.run")
+    def test_brew_on_path_intel(self, mock_run: MagicMock, _mock_exists: MagicMock) -> None:
+        """env is passed to subprocess.run with Homebrew bin prepended (Intel)."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["brew", "list"], returncode=0, stdout="", stderr=""
+        )
+
+        run(["brew", "list"])
+
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["env"] is not None
+        path_entries = call_kwargs["env"]["PATH"].split(os.pathsep)
+        assert path_entries[0] == "/usr/local/bin"
 
     @patch("loadout.runner.os.path.isfile", return_value=False)
     @patch("loadout.runner.subprocess.run")

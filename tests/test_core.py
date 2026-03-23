@@ -90,6 +90,25 @@ class TestRunDisplay:
         mock_apply_display.assert_called_once_with(sentinel_config, mode="solo", dry_run=True)
 
 
+class TestRunClaudeConfig:
+    """Tests for run_claude_config delegation."""
+
+    @patch("loadout.claude.build_claude_config")
+    @patch("loadout.config.load_config")
+    def test_run_claude_config_delegates(
+        self,
+        mock_load_config: MagicMock,
+        mock_build_claude: MagicMock,
+    ) -> None:
+        sentinel_config = object()
+        mock_load_config.return_value = sentinel_config
+
+        core.run_claude_config(dry_run=True)
+
+        mock_load_config.assert_called_once()
+        mock_build_claude.assert_called_once_with(sentinel_config, dry_run=True)
+
+
 class TestRunInit:
     """Tests for run_init delegation."""
 
