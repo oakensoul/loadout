@@ -44,6 +44,7 @@ class TestPathProperties:
         assert cfg.dotfiles_private_dir == home / ".dotfiles-private"
         assert cfg.build_dir == home / ".dotfiles" / "build"
         assert cfg.config_path == home / ".dotfiles" / ".loadout.toml"
+        assert cfg.claude_dir == home / ".claude"
 
     def test_custom_base_dir(self, tmp_path: Path) -> None:
         """Path properties respect a custom base_dir."""
@@ -53,6 +54,7 @@ class TestPathProperties:
         assert cfg.dotfiles_private_dir == tmp_path / ".dotfiles-private"
         assert cfg.build_dir == tmp_path / ".dotfiles" / "build"
         assert cfg.config_path == tmp_path / ".dotfiles" / ".loadout.toml"
+        assert cfg.claude_dir == tmp_path / ".claude"
 
 
 class TestLoadConfig:
@@ -110,3 +112,18 @@ class TestSaveConfig:
         cfg = LoadoutConfig(user="testuser", orgs=[], base_dir=tmp_path)
         assert cfg.github_token_op_path == "op://Personal/GitHub Token/credential"
         assert cfg.nvm_version == "0.40.1"
+        assert cfg.pyenv_version == "3"
+
+    def test_round_trip_pyenv_version(self, tmp_path: Path) -> None:
+        """pyenv_version round-trips through save/load correctly."""
+        cfg = LoadoutConfig(
+            user="testuser",
+            orgs=[],
+            base_dir=tmp_path,
+            pyenv_version="3.12",
+        )
+        save_config(cfg)
+
+        loaded = load_config(base_dir=tmp_path)
+
+        assert loaded.pyenv_version == "3.12"

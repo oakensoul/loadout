@@ -48,7 +48,9 @@ def test_run_update_full_flow(
     mock_build.assert_called_once_with(config, dry_run=False)
     # Brew update + bundle (via brew.py)
     mock_brew_run.assert_any_call(["brew", "update"], dry_run=False)
-    mock_brew_run.assert_any_call(["brew", "bundle", f"--file={brewfile}"], dry_run=False)
+    mock_brew_run.assert_any_call(
+        ["brew", "bundle", f"--file={brewfile}", "--no-lock"], dry_run=False
+    )
     # Globals
     mock_globals.assert_called_once_with(config, dry_run=False)
 

@@ -8,6 +8,7 @@ import shutil
 
 from loadout.brew import brew_bundle
 from loadout.build import build_dotfiles
+from loadout.claude import build_claude_config
 from loadout.config import LoadoutConfig
 from loadout.globals import install_globals
 from loadout.runner import run
@@ -21,8 +22,9 @@ def run_update(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     1. Pull dotfiles repo (fast-forward only).
     2. Pull dotfiles-private repo (fast-forward only).
     3. Rebuild merged dotfiles.
-    4. Run ``brew update`` and ``brew bundle``.
-    5. Install non-Homebrew globals.
+    4. Build Claude config.
+    5. Run ``brew update`` and ``brew bundle``.
+    6. Install non-Homebrew globals.
     """
     section_header("Update")
 
@@ -59,10 +61,13 @@ def run_update(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     # Build dotfiles
     run_step("Build dotfiles", lambda: build_dotfiles(config, dry_run=dry_run))
 
+    # Build Claude config
+    run_step("Build Claude config", lambda: build_claude_config(config, dry_run=dry_run))
+
     # Brew update + bundle
     run_step(
         "Brew bundle",
-        lambda: brew_bundle(dotfiles_dir, dry_run=dry_run),
+        lambda: brew_bundle(config, dry_run=dry_run),
     )
 
     # Install globals

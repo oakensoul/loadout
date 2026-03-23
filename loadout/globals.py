@@ -11,7 +11,7 @@ from pathlib import Path
 from loadout.config import LoadoutConfig
 from loadout.exceptions import LoadoutConfigError
 from loadout.runner import run
-from loadout.ui import run_step, section_header, status_line
+from loadout.ui import run_step, section_header, status_line, verbose_line
 
 
 def ensure_claude_code(*, dry_run: bool = False) -> None:
@@ -58,7 +58,7 @@ def ensure_nvm_node(config: LoadoutConfig, *, dry_run: bool = False) -> None:
         )
 
 
-def ensure_pyenv_python(*, dry_run: bool = False) -> None:
+def ensure_pyenv_python(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """Install pyenv and latest stable Python if not already present."""
     if shutil.which("pyenv") is None:
         status_line("[yellow]![/yellow]", "pyenv", "not found — install via Homebrew first")
@@ -70,7 +70,7 @@ def ensure_pyenv_python(*, dry_run: bool = False) -> None:
         status_line("[green]✓[/green]", "pyenv Python", "already installed")
         return
 
-    run(["pyenv", "install", "--skip-existing", "3"], dry_run=dry_run)
+    run(["pyenv", "install", "--skip-existing", config.pyenv_version], dry_run=dry_run)
 
 
 def install_npm_globals(packages: list[str], *, dry_run: bool = False) -> None:
@@ -101,6 +101,32 @@ def install_pip_globals(packages: list[str], *, dry_run: bool = False) -> None:
         run(["pip", "install", "--user", package], dry_run=dry_run)
 
 
+def _run_base_globals_script(config: LoadoutConfig, *, dry_run: bool = False) -> None:
+    """Run the public base globals shell script if it exists."""
+    script = config.dotfiles_dir / "globals" / "globals.base.sh"
+    if not script.exists():
+        verbose_line(f"Base globals script not found: {script}")
+        return
+    run(["bash", "-euo", "pipefail", str(script)], dry_run=dry_run)
+
+
+def _install_org_globals_scripts(config: LoadoutConfig, *, dry_run: bool = False) -> None:
+    """Install per-org globals scripts into ~/.zshrc.d/ for shell sourcing."""
+    zshrc_d = config.home / ".zshrc.d"
+    for org in config.orgs:
+        src = config.dotfiles_private_dir / "globals" / "orgs" / f"globals.{org}.sh"
+        if not src.exists():
+            verbose_line(f"Org globals script not found: {src}")
+            continue
+        dest = zshrc_d / f"globals.{org}.sh"
+        if dry_run:
+            verbose_line(f"[DRY-RUN] Would copy {src} -> {dest}")
+            continue
+        zshrc_d.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        status_line("[green]✓[/green]", f"globals.{org}.sh", f"installed to {zshrc_d}")
+
+
 def _read_package_list(path: Path) -> list[str]:
     """Read a package list file (one package per line), ignoring blanks and comments."""
     if not path.exists():
@@ -118,7 +144,16 @@ def install_globals(config: LoadoutConfig, *, dry_run: bool = False) -> None:
         lambda: ensure_nvm_node(config, dry_run=dry_run),
     )
     run_step("Ensure Claude Code CLI", lambda: ensure_claude_code(dry_run=dry_run))
-    run_step("Ensure pyenv Python", lambda: ensure_pyenv_python(dry_run=dry_run))
+    run_step("Ensure pyenv Python", lambda: ensure_pyenv_python(config, dry_run=dry_run))
+
+    run_step(
+        "Run base globals script",
+        lambda: _run_base_globals_script(config, dry_run=dry_run),
+    )
+    run_step(
+        "Install org globals scripts",
+        lambda: _install_org_globals_scripts(config, dry_run=dry_run),
+    )
 
     # Collect npm and pip packages from org config files
     npm_packages: list[str] = []

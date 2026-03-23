@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
 
@@ -47,6 +48,21 @@ def run(
 
     verbose_line(f"$ {display_cmd}")
 
+    # Ensure Homebrew's bin directory is on PATH so that brew-installed
+    # tools are discoverable by subprocesses (e.g. on macOS).
+    env: dict[str, str] | None = None
+    if os.path.isfile("/opt/homebrew/bin/brew"):
+        brew_bin = "/opt/homebrew/bin"
+    elif os.path.isfile("/usr/local/bin/brew"):
+        brew_bin = "/usr/local/bin"
+    else:
+        brew_bin = None
+
+    if brew_bin is not None:
+        current_path = os.environ.get("PATH", "")
+        if brew_bin not in current_path.split(os.pathsep):
+            env = {**os.environ, "PATH": brew_bin + os.pathsep + current_path}
+
     try:
         result = subprocess.run(  # noqa: S603 — cmd is list-form, no shell=True
             cmd,
@@ -54,6 +70,7 @@ def run(
             stdout=subprocess.PIPE if capture else None,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
     except FileNotFoundError as exc:
         raise LoadoutCommandError(

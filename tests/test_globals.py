@@ -10,7 +10,9 @@ from unittest.mock import MagicMock, patch
 
 from loadout.config import LoadoutConfig
 from loadout.globals import (
+    _install_org_globals_scripts,
     _read_package_list,
+    _run_base_globals_script,
     ensure_claude_code,
     ensure_nvm_node,
     ensure_pyenv_python,
@@ -90,7 +92,8 @@ def test_ensure_nvm_node_installs(
 @patch("loadout.globals.shutil.which", return_value=None)
 def test_ensure_pyenv_not_found(mock_which: MagicMock, mock_run: MagicMock) -> None:
     """Should skip gracefully when pyenv is not installed."""
-    ensure_pyenv_python()
+    config = LoadoutConfig()
+    ensure_pyenv_python(config)
     mock_run.assert_not_called()
 
 
@@ -101,7 +104,8 @@ def test_ensure_pyenv_python_already_installed(mock_which: MagicMock, mock_run: 
     mock_run.return_value = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="3.12.0\n", stderr=""
     )
-    ensure_pyenv_python()
+    config = LoadoutConfig()
+    ensure_pyenv_python(config)
     # Only one call — to check versions
     mock_run.assert_called_once()
 
@@ -111,7 +115,8 @@ def test_ensure_pyenv_python_already_installed(mock_which: MagicMock, mock_run: 
 def test_ensure_pyenv_python_installs(mock_which: MagicMock, mock_run: MagicMock) -> None:
     """Should install python when pyenv has no versions."""
     mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
-    ensure_pyenv_python()
+    config = LoadoutConfig()
+    ensure_pyenv_python(config)
     assert mock_run.call_count == 2
 
 
@@ -162,6 +167,78 @@ def test_install_pip_globals_installs_missing(mock_run: MagicMock) -> None:
     install_pip_globals(["black"])
     assert mock_run.call_count == 2
     mock_run.assert_any_call(["pip", "install", "--user", "black"], dry_run=False)
+
+
+# ---------------------------------------------------------------------------
+# _run_base_globals_script
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.globals.run")
+def test_run_base_globals_script(mock_run: MagicMock, tmp_path: Path) -> None:
+    """Should execute base globals script via bash -euo pipefail."""
+    script_dir = tmp_path / ".dotfiles" / "globals"
+    script_dir.mkdir(parents=True)
+    script = script_dir / "globals.base.sh"
+    script.write_text("#!/bin/bash\necho hello\n", encoding="utf-8")
+
+    config = LoadoutConfig(base_dir=tmp_path)
+    _run_base_globals_script(config)
+
+    mock_run.assert_called_once_with(["bash", "-euo", "pipefail", str(script)], dry_run=False)
+
+
+@patch("loadout.globals.run")
+def test_run_base_globals_script_missing(mock_run: MagicMock, tmp_path: Path) -> None:
+    """Should skip gracefully when base globals script is missing."""
+    config = LoadoutConfig(base_dir=tmp_path)
+    _run_base_globals_script(config)
+    mock_run.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _install_org_globals_scripts
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.globals.run")
+def test_install_org_globals_scripts(mock_run: MagicMock, tmp_path: Path) -> None:
+    """Should copy org globals scripts to ~/.zshrc.d/."""
+    orgs_dir = tmp_path / ".dotfiles-private" / "globals" / "orgs"
+    orgs_dir.mkdir(parents=True)
+    src = orgs_dir / "globals.myorg.sh"
+    src.write_text('export FOO="bar"\n', encoding="utf-8")
+
+    config = LoadoutConfig(orgs=["myorg"], base_dir=tmp_path)
+    _install_org_globals_scripts(config)
+
+    dest = tmp_path / ".zshrc.d" / "globals.myorg.sh"
+    assert dest.exists()
+    assert dest.read_text(encoding="utf-8") == 'export FOO="bar"\n'
+
+
+@patch("loadout.globals.run")
+def test_install_org_globals_scripts_dry_run(mock_run: MagicMock, tmp_path: Path) -> None:
+    """Should not copy files in dry-run mode."""
+    orgs_dir = tmp_path / ".dotfiles-private" / "globals" / "orgs"
+    orgs_dir.mkdir(parents=True)
+    (orgs_dir / "globals.myorg.sh").write_text('export FOO="bar"\n', encoding="utf-8")
+
+    config = LoadoutConfig(orgs=["myorg"], base_dir=tmp_path)
+    _install_org_globals_scripts(config, dry_run=True)
+
+    dest = tmp_path / ".zshrc.d" / "globals.myorg.sh"
+    assert not dest.exists()
+
+
+@patch("loadout.globals.run")
+def test_install_org_globals_scripts_missing(mock_run: MagicMock, tmp_path: Path) -> None:
+    """Should skip gracefully when org globals script is missing."""
+    config = LoadoutConfig(orgs=["noorg"], base_dir=tmp_path)
+    _install_org_globals_scripts(config)
+
+    zshrc_d = tmp_path / ".zshrc.d"
+    assert not zshrc_d.exists()
 
 
 # ---------------------------------------------------------------------------
