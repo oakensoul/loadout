@@ -123,7 +123,7 @@ def check() -> None:
     """Run health checks — read-only, never mutates.
 
     Checks Homebrew, Git, Node, Python, 1Password CLI, GitHub SSH,
-    Claude Code, and Brewfile presence.
+    Claude Code, Brewfile fragments, globals scripts, and Claude config.
     """
     from loadout.core import check_health
 

@@ -82,6 +82,8 @@ def _register_ssh_key_with_github(
     runner.run(
         [
             "bash",
+            "-euo",
+            "pipefail",
             "-c",
             f"op read {safe_path} | gh auth login --with-token",
         ],

@@ -15,6 +15,7 @@ from loadout.update import run_update, run_upgrade
 # ---------------------------------------------------------------------------
 
 
+@patch("loadout.update.build_claude_config")
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
@@ -26,6 +27,7 @@ def test_run_update_full_flow(
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
     tmp_path: Path,
 ) -> None:
     """All steps should execute when dotfiles dirs exist and brew is available."""
@@ -55,6 +57,7 @@ def test_run_update_full_flow(
     mock_globals.assert_called_once_with(config, dry_run=False)
 
 
+@patch("loadout.update.build_claude_config")
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
@@ -66,6 +69,7 @@ def test_run_update_dry_run(
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Dry-run flag should propagate to all mutating operations."""
@@ -89,6 +93,7 @@ def test_run_update_dry_run(
     mock_globals.assert_called_once_with(config, dry_run=True)
 
 
+@patch("loadout.update.build_claude_config")
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
@@ -100,6 +105,7 @@ def test_run_update_missing_dotfiles_dir(
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Should skip git pull and warn when dotfiles dirs don't exist."""
@@ -115,6 +121,7 @@ def test_run_update_missing_dotfiles_dir(
     mock_globals.assert_called_once()
 
 
+@patch("loadout.update.build_claude_config")
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
@@ -126,6 +133,7 @@ def test_run_update_no_brew(
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Should skip all brew steps when brew is not found."""
@@ -145,6 +153,7 @@ def test_run_update_no_brew(
     mock_globals.assert_called_once()
 
 
+@patch("loadout.update.build_claude_config")
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
@@ -156,6 +165,7 @@ def test_run_update_no_brewfile(
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Should skip brew bundle when Brewfile is missing."""
@@ -175,6 +185,7 @@ def test_run_update_no_brewfile(
 # ---------------------------------------------------------------------------
 
 
+@patch("loadout.update.build_claude_config")
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
@@ -188,6 +199,7 @@ def test_run_upgrade_calls_update_then_upgrade(
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Upgrade should call update first, then brew upgrade."""
@@ -207,6 +219,7 @@ def test_run_upgrade_calls_update_then_upgrade(
     mock_update_run.assert_any_call(["brew", "upgrade"], dry_run=False)
 
 
+@patch("loadout.update.build_claude_config")
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
@@ -220,6 +233,7 @@ def test_run_upgrade_no_brew(
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
     tmp_path: Path,
 ) -> None:
     """Should skip brew upgrade when brew is not found."""

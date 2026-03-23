@@ -169,8 +169,8 @@ def test_apply_display_profile_runs_scripts(
 
     # Should have run base + desktop
     assert len(run_calls) == 2
-    assert "defaults-base.sh" in run_calls[0][1]
-    assert "defaults-desktop.sh" in run_calls[1][1]
+    assert "defaults-base.sh" in run_calls[0][-1]
+    assert "defaults-desktop.sh" in run_calls[1][-1]
 
 
 def test_apply_display_profile_solo(
@@ -187,8 +187,8 @@ def test_apply_display_profile_solo(
         apply_display_profile(config, mode="solo", dry_run=False)
 
     assert len(run_calls) == 2
-    assert "defaults-base.sh" in run_calls[0][1]
-    assert "defaults-laptop-solo.sh" in run_calls[1][1]
+    assert "defaults-base.sh" in run_calls[0][-1]
+    assert "defaults-laptop-solo.sh" in run_calls[1][-1]
 
 
 def test_apply_display_profile_noop_non_macos(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -278,8 +278,8 @@ def test_apply_display_profile_auto_detect(
 
     # Should have resolved to "connected" mode and run base + desktop scripts.
     assert len(run_calls) == 2
-    assert "defaults-base.sh" in run_calls[0][1]
-    assert "defaults-desktop.sh" in run_calls[1][1]
+    assert "defaults-base.sh" in run_calls[0][-1]
+    assert "defaults-desktop.sh" in run_calls[1][-1]
 
 
 def test_apply_display_profile_dry_run(

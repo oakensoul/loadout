@@ -23,6 +23,8 @@ def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[s
 
 
 @patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=True)
@@ -38,15 +40,14 @@ def test_run_init_full_flow(
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
     """All steps should execute in order."""
     (tmp_path / ".dotfiles").mkdir()
     (tmp_path / ".dotfiles-private").mkdir()
-    macos_dir = tmp_path / ".dotfiles" / "macos"
-    macos_dir.mkdir()
-    (macos_dir / "defaults-base.sh").write_text("#!/bin/bash\n")
 
     run_init("testuser", ["orgA", "orgB"], base_dir=tmp_path)
 
@@ -78,7 +79,13 @@ def test_run_init_full_flow(
     # 7. Install globals
     mock_globals.assert_called_once()
 
-    # 10. Save config
+    # 8. Build Claude config
+    mock_claude.assert_called_once()
+
+    # 9. Apply macOS defaults
+    mock_macos_defaults.assert_called_once()
+
+    # 11. Save config
     mock_save.assert_called_once()
     saved_config = mock_save.call_args.args[0]
     assert saved_config.user == "testuser"
@@ -91,6 +98,8 @@ def test_run_init_full_flow(
 
 
 @patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
@@ -104,6 +113,8 @@ def test_run_init_dry_run(
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
@@ -126,6 +137,14 @@ def test_run_init_dry_run(
     mock_brew.assert_called_once()
     assert mock_brew.call_args.kwargs.get("dry_run") is True
 
+    # build_claude_config should get dry_run=True
+    mock_claude.assert_called_once()
+    assert mock_claude.call_args.kwargs.get("dry_run") is True
+
+    # apply_macos_defaults should get dry_run=True
+    mock_macos_defaults.assert_called_once()
+    assert mock_macos_defaults.call_args.kwargs.get("dry_run") is True
+
     # save_config should NOT be called in dry-run
     mock_save.assert_not_called()
 
@@ -136,6 +155,8 @@ def test_run_init_dry_run(
 
 
 @patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
@@ -149,6 +170,8 @@ def test_run_init_existing_dotfiles_skips_clone(
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
@@ -168,6 +191,8 @@ def test_run_init_existing_dotfiles_skips_clone(
 
 
 @patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
@@ -181,6 +206,8 @@ def test_run_init_existing_ssh_key_skips_keygen(
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
@@ -201,6 +228,8 @@ def test_run_init_existing_ssh_key_skips_keygen(
 
 
 @patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
@@ -212,6 +241,8 @@ def test_run_init_no_op_cli_skips_ssh_registration(
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
@@ -240,6 +271,8 @@ def test_run_init_no_op_cli_skips_ssh_registration(
 
 
 @patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
@@ -251,6 +284,8 @@ def test_run_init_no_brew_skips_bundle(
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
@@ -274,6 +309,8 @@ def test_run_init_no_brew_skips_bundle(
 
 
 @patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
@@ -287,6 +324,8 @@ def test_run_init_saves_config(
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
@@ -306,6 +345,8 @@ def test_run_init_saves_config(
 
 
 @patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
 @patch("loadout.init.install_globals")
 @patch("loadout.init.build_dotfiles")
 @patch("loadout.init.is_macos", return_value=False)
@@ -319,6 +360,8 @@ def test_run_init_non_macos_skips_launch_agent(
     mock_is_macos: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:

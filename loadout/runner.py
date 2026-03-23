@@ -4,12 +4,23 @@
 
 from __future__ import annotations
 
+import functools
 import os
 import shlex
 import subprocess
 
 from loadout.exceptions import LoadoutCommandError
 from loadout.ui import err_console, verbose_line
+
+
+@functools.lru_cache(maxsize=1)
+def _detect_brew_bin() -> str | None:
+    """Detect Homebrew bin directory (cached for process lifetime)."""
+    if os.path.isfile("/opt/homebrew/bin/brew"):
+        return "/opt/homebrew/bin"
+    if os.path.isfile("/usr/local/bin/brew"):
+        return "/usr/local/bin"
+    return None
 
 
 def run(
@@ -51,13 +62,7 @@ def run(
     # Ensure Homebrew's bin directory is on PATH so that brew-installed
     # tools are discoverable by subprocesses (e.g. on macOS).
     env: dict[str, str] | None = None
-    if os.path.isfile("/opt/homebrew/bin/brew"):
-        brew_bin = "/opt/homebrew/bin"
-    elif os.path.isfile("/usr/local/bin/brew"):
-        brew_bin = "/usr/local/bin"
-    else:
-        brew_bin = None
-
+    brew_bin = _detect_brew_bin()
     if brew_bin is not None:
         current_path = os.environ.get("PATH", "")
         if brew_bin not in current_path.split(os.pathsep):

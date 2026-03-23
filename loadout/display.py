@@ -109,7 +109,7 @@ def apply_display_profile(
 
     for script in scripts:
         ui.status_line("[dim]▶[/dim]", "Running", script.name)
-        runner.run(["bash", str(script)], dry_run=dry_run)
+        runner.run(["bash", "-euo", "pipefail", str(script)], dry_run=dry_run)
 
     ui.status_line("[green]✓[/green]", "Display", f"profile '{mode}' applied")
 

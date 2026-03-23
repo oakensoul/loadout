@@ -8,6 +8,7 @@ import json
 import shutil
 
 from loadout.config import LoadoutConfig
+from loadout.exceptions import LoadoutBuildError
 from loadout.merge import deep_merge
 from loadout.ui import status_line, verbose_line
 
@@ -19,12 +20,18 @@ def _build_mcp_json(config: LoadoutConfig, *, dry_run: bool = False) -> None:
         verbose_line(f"mcp base not found: {base_path}")
         return
 
-    merged: object = json.loads(base_path.read_text(encoding="utf-8"))
+    try:
+        merged: object = json.loads(base_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise LoadoutBuildError(f"Malformed JSON in {base_path}: {exc}") from exc
 
     for org in config.orgs:
         org_mcp = config.dotfiles_private_dir / "claude" / "orgs" / org / f"mcp-{org}.json"
         if org_mcp.exists():
-            org_data: object = json.loads(org_mcp.read_text(encoding="utf-8"))
+            try:
+                org_data: object = json.loads(org_mcp.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise LoadoutBuildError(f"Malformed JSON in {org_mcp}: {exc}") from exc
             merged = deep_merge(merged, org_data)
             verbose_line(f"merged MCP config for org: {org}")
 
@@ -96,7 +103,9 @@ def _copy_providers(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     providers_dest.mkdir(parents=True, exist_ok=True)
     for sh_file in sorted(providers_src.iterdir()):
         if sh_file.is_file() and sh_file.suffix == ".sh":
-            shutil.copy2(sh_file, providers_dest / sh_file.name)
+            dest_file = providers_dest / sh_file.name
+            shutil.copy2(sh_file, dest_file)
+            dest_file.chmod(dest_file.stat().st_mode | 0o755)
             verbose_line(f"copied provider: {sh_file.name}")
 
     status_line("[green]✓[/green]", "providers", str(providers_dest))
