@@ -76,6 +76,51 @@ def main() -> None:
 
 
 @cli.command()
+@click.option("--user", required=True, help="GitHub username.")
+@click.option("--orgs", required=True, multiple=True, help="Org names (repeat for multiple).")
+@click.option("--git-name", required=True, help="Full name for git config.")
+@click.option("--git-email", required=True, help="Email for git config.")
+@click.option(
+    "--template",
+    default="https://github.com/oakensoul/dotfiles-private-cookiecutter",
+    help="Cookiecutter template URL or local path.",
+)
+@click.option("--create-repo", is_flag=True, default=False, help="Create GitHub repo via gh CLI.")
+@click.option("--dry-run", is_flag=True, default=False, help="Preview without making changes.")
+@click.pass_context
+def scaffold(
+    ctx: click.Context,
+    user: str,
+    orgs: tuple[str, ...],
+    git_name: str,
+    git_email: str,
+    template: str,
+    create_repo: bool,
+    dry_run: bool,
+) -> None:
+    """Scaffold a new dotfiles-private repository.
+
+    Uses cookiecutter to generate a private dotfiles repo from a template.
+    Run this BEFORE 'loadout init'.
+
+    Example: loadout scaffold --user=oakensoul --orgs=personal \\
+             --git-name="Jane Doe" --git-email="jane@example.com"
+    """
+    from loadout.core import run_scaffold
+
+    effective_dry_run = ctx.obj["dry_run"] or dry_run
+    run_scaffold(
+        user,
+        list(orgs),
+        git_name,
+        git_email,
+        template=template,
+        create_repo=create_repo,
+        dry_run=effective_dry_run,
+    )
+
+
+@cli.command()
 @click.option("--user", required=True, help="GitHub username (owner of dotfiles repos).")
 @click.option("--orgs", required=True, multiple=True, help="Org names (repeat for multiple).")
 @click.pass_context

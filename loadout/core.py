@@ -14,6 +14,7 @@ __all__ = [
     "run_display",
     "run_globals",
     "run_init",
+    "run_scaffold",
     "run_update",
     "run_upgrade",
 ]
@@ -78,6 +79,33 @@ def run_display(mode: str | None = None, *, dry_run: bool = False) -> None:
 
     config = load_config()
     apply_display_profile(config, mode=mode, dry_run=dry_run)
+
+
+def run_scaffold(
+    user: str,
+    orgs: list[str],
+    git_name: str,
+    git_email: str,
+    *,
+    template: str = "https://github.com/oakensoul/dotfiles-private-cookiecutter",
+    create_repo: bool = False,
+    dry_run: bool = False,
+) -> None:
+    """Scaffold a new dotfiles-private repository.
+
+    Delegates to :mod:`loadout.scaffold`.
+    """
+    from loadout.scaffold import run_scaffold as _run_scaffold
+
+    _run_scaffold(
+        user,
+        orgs,
+        git_name,
+        git_email,
+        template=template,
+        create_repo=create_repo,
+        dry_run=dry_run,
+    )
 
 
 def run_init(user: str, orgs: list[str], *, dry_run: bool = False) -> None:
