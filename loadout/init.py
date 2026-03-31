@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import shutil
 import socket
 from pathlib import Path
@@ -177,38 +176,47 @@ def _provision_ssh_keys(
     return pub_keys
 
 
-def _register_ssh_key_with_github(
-    ssh_pub_path: Path,
-    *,
-    github_token_op_path: str,
-    dry_run: bool = False,
-) -> None:
-    """Register the SSH public key with GitHub via 1Password + gh CLI."""
-    if shutil.which("op") is None:
-        ui.status_line(
-            "[yellow]![/yellow]", "1Password CLI", "not found — skipping SSH key registration"
-        )
-        return
+def _ensure_gh_authenticated(*, dry_run: bool = False) -> bool:
+    """Ensure the GitHub CLI is authenticated, prompting if needed.
+
+    Returns True if gh is authenticated, False if it cannot be.
+    """
     if shutil.which("gh") is None:
         ui.status_line(
             "[yellow]![/yellow]", "GitHub CLI", "not found — skipping SSH key registration"
         )
-        return
+        return False
 
-    # Authenticate gh with a token from 1Password via shell pipeline
-    safe_path = shlex.quote(github_token_op_path)
-    runner.run(
-        [
-            "bash",
-            "-euo",
-            "pipefail",
-            "-c",
-            f"op read {safe_path} | gh auth login --with-token",
-        ],
-        dry_run=dry_run,
+    # Check if already authenticated
+    result = runner.run(["gh", "auth", "status"], capture=True, check=False)
+    if result.returncode == 0:
+        ui.status_line("[green]\u2713[/green]", "GitHub CLI", "already authenticated")
+        return True
+
+    if dry_run:
+        ui.status_line(
+            "[dim]\u25b6[/dim]", "GitHub CLI", "would authenticate via browser (dry run)"
+        )
+        return True
+
+    # Authenticate via browser OAuth with SSH protocol
+    ui.status_line("[blue]\u2193[/blue]", "GitHub CLI", "opening browser for authentication...")
+    result = runner.run(
+        ["gh", "auth", "login", "--web", "-p", "ssh"],
+        check=False,
     )
+    return result.returncode == 0
 
+
+def _register_ssh_key_with_github(
+    ssh_pub_path: Path,
+    *,
+    dry_run: bool = False,
+) -> None:
+    """Register the SSH public key with GitHub via gh CLI."""
     hostname = socket.gethostname()
+    # Extract org from key filename for a descriptive title
+    key_name = ssh_pub_path.stem  # e.g. "id_ed25519_oakensoul"
     runner.run(
         [
             "gh",
@@ -216,9 +224,10 @@ def _register_ssh_key_with_github(
             "add",
             str(ssh_pub_path),
             "--title",
-            f"loadout-{hostname}",
+            f"loadout-{hostname}-{key_name}",
         ],
         dry_run=dry_run,
+        check=False,  # key may already be registered
     )
 
 
@@ -350,12 +359,10 @@ def run_init(
 
     # 4. Register SSH keys with GitHub
     def _register_all_ssh_keys() -> None:
+        if not _ensure_gh_authenticated(dry_run=dry_run):
+            return
         for pub_key in pub_keys:
-            _register_ssh_key_with_github(
-                pub_key,
-                github_token_op_path=config.github_token_op_path,
-                dry_run=dry_run,
-            )
+            _register_ssh_key_with_github(pub_key, dry_run=dry_run)
 
     ui.run_step("Register SSH keys with GitHub", _register_all_ssh_keys)
 
