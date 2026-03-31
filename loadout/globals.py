@@ -19,7 +19,14 @@ def ensure_claude_code(*, dry_run: bool = False) -> None:
     if shutil.which("claude") is not None:
         status_line("[green]✓[/green]", "Claude Code", "already installed")
         return
-    run(["npm", "install", "-g", "@anthropic-ai/claude-code"], dry_run=dry_run)
+    run(
+        [
+            "bash",
+            "-c",
+            "curl -fsSL https://claude.ai/install.sh | bash",
+        ],
+        dry_run=dry_run,
+    )
 
 
 def ensure_nvm_node(config: LoadoutConfig, *, dry_run: bool = False) -> None:
@@ -154,7 +161,7 @@ def install_globals(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     run_step(
         "Run private base globals script",
         lambda: _run_globals_script(
-            config.dotfiles_private_dir / "globals" / "globals.private.sh",
+            config.dotfiles_private_dir / "globals" / "base" / "globals.sh",
             dry_run=dry_run,
         ),
     )

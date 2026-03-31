@@ -157,12 +157,12 @@ def check_brewfile_fragments(config: LoadoutConfig) -> list[CheckResult]:
                 )
             )
 
-        private_base = config.dotfiles_private_dir / "brewfiles" / "Brewfile.private"
+        private_base = config.dotfiles_private_dir / "brewfiles" / "base" / "Brewfile"
         if private_base.exists():
             results.append(
                 CheckResult(
                     status=CheckStatus.OK,
-                    label="Brewfile.private",
+                    label="Brewfile (private base)",
                     detail=f"found at {private_base}",
                 )
             )
@@ -225,12 +225,12 @@ def check_globals_scripts(config: LoadoutConfig) -> list[CheckResult]:
             )
         )
 
-    private_base_script = config.dotfiles_private_dir / "globals" / "globals.private.sh"
+    private_base_script = config.dotfiles_private_dir / "globals" / "base" / "globals.sh"
     if private_base_script.exists():
         results.append(
             CheckResult(
                 status=CheckStatus.OK,
-                label="globals.private.sh",
+                label="globals.sh (private base)",
                 detail=f"found at {private_base_script}",
             )
         )

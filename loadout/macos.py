@@ -35,6 +35,27 @@ def detect_machine_type() -> str:
         return "unknown"
 
 
+def _run_private_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False) -> None:
+    """Run private macOS defaults scripts from dotfiles-private.
+
+    Looks for:
+    - ``{dotfiles_private_dir}/macos/base/set-defaults.sh`` (private base)
+    - ``{dotfiles_private_dir}/macos/orgs/{org}/set-defaults.sh`` for each org
+
+    Missing scripts are silently skipped.
+    """
+    private_base_script = config.dotfiles_private_dir / "macos" / "base" / "set-defaults.sh"
+    if private_base_script.exists():
+        ui.status_line("[dim]\u25b6[/dim]", "Running", "private base set-defaults.sh")
+        runner.run(["bash", "-euo", "pipefail", str(private_base_script)], dry_run=dry_run)
+
+    for org in config.orgs:
+        org_script = config.dotfiles_private_dir / "macos" / "orgs" / org / "set-defaults.sh"
+        if org_script.exists():
+            ui.status_line("[dim]\u25b6[/dim]", "Running", f"org {org} set-defaults.sh")
+            runner.run(["bash", "-euo", "pipefail", str(org_script)], dry_run=dry_run)
+
+
 def apply_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """Apply macOS defaults scripts based on hardware type.
 
@@ -45,6 +66,8 @@ def apply_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False) -> Non
     - **laptop** -> ``defaults-laptop-connected.sh`` or
       ``defaults-laptop-solo.sh`` depending on external display
     - **unknown** -> skipped with a warning
+
+    Then runs private macOS defaults from dotfiles-private (base and per-org).
 
     Missing scripts are skipped gracefully.
     """
@@ -90,3 +113,6 @@ def apply_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False) -> Non
             "macOS defaults",
             "unknown machine type — skipping hardware-specific defaults",
         )
+
+    # Run private macOS defaults (base and per-org)
+    _run_private_macos_defaults(config, dry_run=dry_run)

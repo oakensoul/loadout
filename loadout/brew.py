@@ -32,7 +32,7 @@ def _assemble_brewfile(config: LoadoutConfig) -> list[Path]:
     if base.exists():
         fragments.append(base)
 
-    private_base = config.dotfiles_private_dir / "brewfiles" / "Brewfile.private"
+    private_base = config.dotfiles_private_dir / "brewfiles" / "base" / "Brewfile"
     if private_base.exists():
         fragments.append(private_base)
 

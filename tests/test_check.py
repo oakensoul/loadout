@@ -257,6 +257,23 @@ class TestCheckGlobalsScripts:
         assert results[1].status == CheckStatus.WARN
         assert results[1].label == "globals.acme.sh"
 
+    def test_check_globals_private_base(self, tmp_path: Path) -> None:
+        dotfiles = tmp_path / ".dotfiles"
+        globals_dir = dotfiles / "globals"
+        globals_dir.mkdir(parents=True)
+        (globals_dir / "globals.base.sh").touch()
+
+        private_globals = tmp_path / ".dotfiles-private" / "globals" / "base"
+        private_globals.mkdir(parents=True)
+        (private_globals / "globals.sh").touch()
+
+        config = LoadoutConfig(base_dir=tmp_path, orgs=[])
+        results = check_globals_scripts(config)
+        assert len(results) == 2
+        assert results[0].label == "globals.base.sh"
+        assert results[1].label == "globals.sh (private base)"
+        assert results[1].status == CheckStatus.OK
+
 
 class TestCheckClaudeConfig:
     """Tests for check_claude_config."""
