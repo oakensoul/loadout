@@ -12,7 +12,7 @@ from loadout.config import LoadoutConfig
 from loadout.globals import (
     _install_org_globals_scripts,
     _read_package_list,
-    _run_base_globals_script,
+    _run_globals_script,
     ensure_claude_code,
     ensure_nvm_node,
     ensure_pyenv_python,
@@ -170,29 +170,25 @@ def test_install_pip_globals_installs_missing(mock_run: MagicMock) -> None:
 
 
 # ---------------------------------------------------------------------------
-# _run_base_globals_script
+# _run_globals_script
 # ---------------------------------------------------------------------------
 
 
 @patch("loadout.globals.run")
-def test_run_base_globals_script(mock_run: MagicMock, tmp_path: Path) -> None:
-    """Should execute base globals script via bash -euo pipefail."""
-    script_dir = tmp_path / ".dotfiles" / "globals"
-    script_dir.mkdir(parents=True)
-    script = script_dir / "globals.base.sh"
+def test_run_globals_script(mock_run: MagicMock, tmp_path: Path) -> None:
+    """Should execute a globals script via bash -euo pipefail."""
+    script = tmp_path / "globals.base.sh"
     script.write_text("#!/bin/bash\necho hello\n", encoding="utf-8")
 
-    config = LoadoutConfig(base_dir=tmp_path)
-    _run_base_globals_script(config)
+    _run_globals_script(script)
 
     mock_run.assert_called_once_with(["bash", "-euo", "pipefail", str(script)], dry_run=False)
 
 
 @patch("loadout.globals.run")
-def test_run_base_globals_script_missing(mock_run: MagicMock, tmp_path: Path) -> None:
-    """Should skip gracefully when base globals script is missing."""
-    config = LoadoutConfig(base_dir=tmp_path)
-    _run_base_globals_script(config)
+def test_run_globals_script_missing(mock_run: MagicMock, tmp_path: Path) -> None:
+    """Should skip gracefully when globals script is missing."""
+    _run_globals_script(tmp_path / "nonexistent.sh")
     mock_run.assert_not_called()
 
 

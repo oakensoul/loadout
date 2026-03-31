@@ -25,6 +25,15 @@ def _build_mcp_json(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     except json.JSONDecodeError as exc:
         raise LoadoutBuildError(f"Malformed JSON in {base_path}: {exc}") from exc
 
+    private_base_mcp = config.dotfiles_private_dir / "claude" / "base" / "mcp-private.json"
+    if private_base_mcp.exists():
+        try:
+            pb_data: object = json.loads(private_base_mcp.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise LoadoutBuildError(f"Malformed JSON in {private_base_mcp}: {exc}") from exc
+        merged = deep_merge(merged, pb_data)
+        verbose_line("merged MCP config for private base")
+
     for org in config.orgs:
         org_mcp = config.dotfiles_private_dir / "claude" / "orgs" / org / f"mcp-{org}.json"
         if org_mcp.exists():
@@ -54,10 +63,16 @@ def _build_claude_md(config: LoadoutConfig, *, dry_run: bool = False) -> None:
 
     content = template_path.read_text(encoding="utf-8")
 
+    private_base_md = config.dotfiles_private_dir / "claude" / "base" / "CLAUDE.md"
+    if private_base_md.exists():
+        separator = "\n\n# --- overlay: private-base ---\n\n"
+        content = content.rstrip("\n") + separator + private_base_md.read_text(encoding="utf-8")
+        verbose_line("appended CLAUDE.md overlay for private base")
+
     for org in config.orgs:
         org_md = config.dotfiles_private_dir / "claude" / "orgs" / org / "CLAUDE.md"
         if org_md.exists():
-            separator = f"\n\n# --- org overlay: {org} ---\n\n"
+            separator = f"\n\n# --- overlay: {org} ---\n\n"
             content = content.rstrip("\n") + separator + org_md.read_text(encoding="utf-8")
             verbose_line(f"appended CLAUDE.md overlay for org: {org}")
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2025 Robert Gunnar Johnson Jr.
-"""Dotfile merge engine — build final dotfiles from base + org layers."""
+"""Dotfile merge engine — build final dotfiles from public base, private base, and org layers."""
 
 from __future__ import annotations
 
@@ -46,18 +46,18 @@ def _get_merge_strategy(filename: str) -> MergeStrategy:
     return MergeStrategy.REPLACE
 
 
-def _merge_concat(base_path: Path, org_path: Path, dest_path: Path) -> None:
-    """Merge by concatenating org content after base content with a separator.
+def _merge_concat(base_path: Path, overlay_path: Path, dest_path: Path, label: str) -> None:
+    """Merge by concatenating overlay content after base content with a separator.
 
-    When multiple orgs are configured, concatenation is intentionally cumulative:
-    each org's content is appended after the previous result so that all layers
+    When multiple layers are configured, concatenation is intentionally cumulative:
+    each layer's content is appended after the previous result so that all layers
     contribute to the final file.
     """
     base_content = base_path.read_text(encoding="utf-8") if base_path.exists() else ""
-    org_content = org_path.read_text(encoding="utf-8")
+    overlay_content = overlay_path.read_text(encoding="utf-8")
 
-    separator = f"\n# --- org overlay: {org_path.parent.name} ---\n"
-    merged = base_content.rstrip("\n") + separator + org_content
+    separator = f"\n# --- overlay: {label} ---\n"
+    merged = base_content.rstrip("\n") + separator + overlay_content
     dest_path.write_text(merged, encoding="utf-8")
 
 
@@ -153,12 +153,58 @@ def _backup_file(dest: Path, backup_dir: Path) -> None:
     verbose_line(f"backed up {dest.name} → {backup_path}")
 
 
+def _apply_overlay(
+    build_dir: Path,
+    overlay_dir: Path,
+    label: str,
+    gitconfig_paths: dict[str, Path],
+) -> None:
+    """Apply a single overlay directory onto *build_dir* using merge strategies.
+
+    Files in *overlay_dir* are merged into *build_dir* according to each file's
+    merge strategy.  The *label* is used in status output and concat separators.
+    Gitconfig files are accumulated into *gitconfig_paths* for deferred handling.
+    """
+    if not overlay_dir.exists():
+        return
+
+    for overlay_file in sorted(overlay_dir.iterdir()):
+        if overlay_file.is_symlink():
+            verbose_line(f"skipping symlink in {label}: {overlay_file.name}")
+            continue
+        if not overlay_file.is_file():
+            continue
+
+        strategy = _get_merge_strategy(overlay_file.name)
+        dest = build_dir / overlay_file.name
+
+        if strategy is MergeStrategy.CONCAT:
+            _merge_concat(dest, overlay_file, dest, label)
+            status_line(">>", f"concat ({label})", overlay_file.name)
+
+        elif strategy is MergeStrategy.GITCONFIG:
+            gitconfig_paths[label] = overlay_file
+
+        elif strategy is MergeStrategy.JSON:
+            _merge_json(dest, overlay_file, dest)
+            status_line(">>", f"json ({label})", overlay_file.name)
+
+        elif strategy is MergeStrategy.YAML:
+            _merge_yaml(dest, overlay_file, dest)
+            status_line(">>", f"yaml ({label})", overlay_file.name)
+
+        elif strategy is MergeStrategy.REPLACE:
+            shutil.copy2(overlay_file, dest)
+            status_line(">>", f"replace ({label})", overlay_file.name)
+
+
 def _build_into(
     build_dir: Path,
     base_dir: Path,
     private_dir: Path,
     home_dir: Path,
     orgs: list[str],
+    private_base_dir: Path | None = None,
 ) -> None:
     """Run the merge pipeline into *build_dir* (Steps 1–3).
 
@@ -169,7 +215,7 @@ def _build_into(
         shutil.rmtree(build_dir)
     build_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 2: Copy base files into build_dir (skip symlinks).
+    # Step 2: Copy public base files into build_dir (skip symlinks).
     if base_dir.exists():
         for src in sorted(base_dir.iterdir()):
             if src.is_symlink():
@@ -179,52 +225,23 @@ def _build_into(
                 shutil.copy2(src, build_dir / src.name)
                 status_line(">>", "base", src.name)
 
-    # Step 3: Apply org overlays.
-    gitconfig_org_paths: dict[str, Path] = {}
+    gitconfig_paths: dict[str, Path] = {}
 
+    # Step 2.5: Apply private base overlay.
+    if private_base_dir is not None:
+        _apply_overlay(build_dir, private_base_dir, "private-base", gitconfig_paths)
+
+    # Step 3: Apply org overlays.
     for org in orgs:
         org_dir = private_dir / org
-        if not org_dir.exists():
-            continue
+        _apply_overlay(build_dir, org_dir, org, gitconfig_paths)
 
-        for org_file in sorted(org_dir.iterdir()):
-            if org_file.is_symlink():
-                verbose_line(f"skipping symlink in org {org}: {org_file.name}")
-                continue
-            if not org_file.is_file():
-                continue
-
-            strategy = _get_merge_strategy(org_file.name)
-            dest = build_dir / org_file.name
-
-            if strategy is MergeStrategy.CONCAT:
-                accumulated = build_dir / org_file.name
-                _merge_concat(accumulated, org_file, dest)
-                status_line(">>", f"concat ({org})", org_file.name)
-
-            elif strategy is MergeStrategy.GITCONFIG:
-                gitconfig_org_paths[org] = org_file
-
-            elif strategy is MergeStrategy.JSON:
-                accumulated = build_dir / org_file.name
-                _merge_json(accumulated, org_file, dest)
-                status_line(">>", f"json ({org})", org_file.name)
-
-            elif strategy is MergeStrategy.YAML:
-                accumulated = build_dir / org_file.name
-                _merge_yaml(accumulated, org_file, dest)
-                status_line(">>", f"yaml ({org})", org_file.name)
-
-            elif strategy is MergeStrategy.REPLACE:
-                shutil.copy2(org_file, dest)
-                status_line(">>", f"replace ({org})", org_file.name)
-
-    # Handle gitconfig after collecting all org paths.
-    if gitconfig_org_paths:
+    # Handle gitconfig after collecting all overlay paths.
+    if gitconfig_paths:
         base_gitconfig = build_dir / ".gitconfig"
         _merge_gitconfig(
             base_gitconfig if base_gitconfig.exists() else base_dir / ".gitconfig",
-            gitconfig_org_paths,
+            gitconfig_paths,
             build_dir / ".gitconfig",
             home_dir,
         )
@@ -242,6 +259,7 @@ def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     home_dir = config.home
     build_dir = config.build_dir
     base_dir = config.dotfiles_dir / "dotfiles" / "base"
+    private_base_dir = config.dotfiles_private_dir / "dotfiles" / "base"
     private_dir = config.dotfiles_private_dir / "dotfiles" / "orgs"
     backup_dir = config.dotfiles_dir / "backups"
 
@@ -254,7 +272,7 @@ def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     # Build into a temp directory first for atomic swap.
     tmp_build = Path(tempfile.mkdtemp(prefix="loadout-build-", dir=config.dotfiles_dir))
     try:
-        _build_into(tmp_build, base_dir, private_dir, home_dir, config.orgs)
+        _build_into(tmp_build, base_dir, private_dir, home_dir, config.orgs, private_base_dir)
 
         # Atomic swap: replace build_dir with the temp dir.
         if build_dir.exists():

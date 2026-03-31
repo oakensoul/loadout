@@ -101,15 +101,19 @@ Everything in `update` plus `brew upgrade` — run intentionally, can break thin
 
 ### `loadout build`
 
-Merges `~/.dotfiles/dotfiles/base/` + `~/.dotfiles-private/dotfiles/orgs/<org>/` fragments:
+Merges three layers of dotfile configuration:
+
+1. **Public base** — `~/.dotfiles/dotfiles/base/` (lowest priority)
+2. **Private base** — `~/.dotfiles-private/dotfiles/base/` (middle priority, optional)
+3. **Org overlays** — `~/.dotfiles-private/dotfiles/orgs/<org>/` (highest priority)
 
 | File type | Strategy |
 |-----------|----------|
-| `.zshrc`, `.aliases` | Concatenation — base + org fragment |
+| `.zshrc`, `.aliases` | Concatenation — layers appended with separators |
 | `.gitconfig` | Native `[include]` — git handles merge |
-| JSON | Deep merge, org wins on conflict |
-| YAML | Deep merge, org wins on conflict |
-| Unknown | Org replaces base |
+| JSON | Deep merge, later layers win on conflict |
+| YAML | Deep merge, later layers win on conflict |
+| Unknown | Later layer replaces earlier |
 
 Output staged to `~/.dotfiles/build/` via an atomic temp-dir-then-swap pattern, then copied to `~/`. Existing files are backed up to `~/.dotfiles/backups/` with UTC timestamps before overwriting. Idempotent — safe to re-run.
 
@@ -143,24 +147,28 @@ Future checks (planned): devbox reachability, canvas staleness, AWS credential e
 
 ## Dotfile Build System
 
-Stow is replaced by a Python build step. No symlinks — orgs layer cleanly on top of base.
+Stow is replaced by a Python build step. No symlinks — layers merge cleanly.
 
 ```
-~/.dotfiles/dotfiles/base/     +    ~/.dotfiles-private/dotfiles/orgs/splash/
-        .zshrc                                   .zshrc
-        .gitconfig                               .gitconfig
-             │                                       │
-             └──────────── loadout build ────────────┘
-                                  │
-                        ~/.dotfiles/build/     ← staged output
-                                  │
-                              copy to ~/       ← written to final locations
+~/.dotfiles/dotfiles/base/   +   ~/.dotfiles-private/dotfiles/base/   +   ~/.dotfiles-private/dotfiles/orgs/splash/
+       .zshrc                            .zshrc                                     .zshrc
+       .gitconfig                        .gitconfig                                 .gitconfig
+            │                                │                                          │
+            └──── public base ───────────────┴──── private base ────────────────────────┘
+                                                        │
+                                              ~/.dotfiles/build/     ← staged output
+                                                        │
+                                                    copy to ~/       ← written to final locations
 ```
+
+The private base layer is optional — when `~/.dotfiles-private/dotfiles/base/` does not exist, the pipeline falls back to the two-layer model (public base + org overlays).
 
 `.gitconfig` uses git's native `[include]` mechanism — no merge logic needed:
 
 ```ini
 # base .gitconfig (built output)
+[include]
+    path = ~/.gitconfig.d/private-base
 [include]
     path = ~/.gitconfig.d/splash
 ```

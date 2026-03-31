@@ -1,0 +1,1 @@
+export PRIVATE_BASE_VAR=1

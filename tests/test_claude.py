@@ -95,9 +95,9 @@ class TestBuildClaudeMd:
         content = (config.claude_dir / "CLAUDE.md").read_text(encoding="utf-8")
         assert "# Base Config" in content
         assert "Base content." in content
-        assert "# --- org overlay: acme ---" in content
+        assert "# --- overlay: acme ---" in content
         assert "Acme-specific rules." in content
-        assert "# --- org overlay: globex ---" in content
+        assert "# --- overlay: globex ---" in content
         assert "Globex-specific rules." in content
         # Verify ordering: acme before globex
         assert content.index("acme") < content.index("globex")

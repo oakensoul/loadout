@@ -51,11 +51,15 @@ def test_run_init_full_flow(
 
     run_init("testuser", ["orgA", "orgB"], base_dir=tmp_path)
 
-    # 2. SSH keygen
+    # 1. Xcode CLI Tools check (via runner.run)
+    xcode_calls = [c for c in mock_run.call_args_list if "xcode-select" in c.args[0]]
+    assert len(xcode_calls) == 1
+
+    # 3. SSH keygen
     keygen_calls = [c for c in mock_run.call_args_list if "ssh-keygen" in c.args[0]]
     assert len(keygen_calls) == 1
 
-    # 3. SSH key registration (bash pipeline)
+    # 4. SSH key registration (bash pipeline)
     bash_calls = [
         c
         for c in mock_run.call_args_list
@@ -63,29 +67,29 @@ def test_run_init_full_flow(
     ]
     assert len(bash_calls) == 1
 
-    # 4. Switch remotes — repo names should NOT have leading dot
+    # 5. Switch remotes — repo names should NOT have leading dot
     set_url_calls = [c for c in mock_run.call_args_list if "set-url" in c.args[0]]
     assert len(set_url_calls) == 2
     for c in set_url_calls:
         url = c.args[0][-1]
         assert "/." not in url, f"URL should not have leading dot: {url}"
 
-    # 5. Build dotfiles
+    # 6. Build dotfiles
     mock_build.assert_called_once()
 
-    # 6. Brew bundle
+    # 7. Brew bundle
     mock_brew.assert_called_once()
 
-    # 7. Install globals
+    # 8. Install globals
     mock_globals.assert_called_once()
 
-    # 8. Build Claude config
+    # 9. Build Claude config
     mock_claude.assert_called_once()
 
-    # 9. Apply macOS defaults
+    # 10. Apply macOS defaults
     mock_macos_defaults.assert_called_once()
 
-    # 11. Save config
+    # 12. Save config
     mock_save.assert_called_once()
     saved_config = mock_save.call_args.args[0]
     assert saved_config.user == "testuser"
