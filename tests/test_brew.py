@@ -112,11 +112,10 @@ class TestBrewBundle:
         # First call: brew update
         assert calls[0][0][0] == ["brew", "update"]
 
-        # Second call: brew bundle --file=<tmp> --no-lock
+        # Second call: brew bundle --file=<tmp>
         bundle_cmd = calls[1][0][0]
         assert bundle_cmd[0:2] == ["brew", "bundle"]
         assert bundle_cmd[2].startswith("--file=")
-        assert bundle_cmd[3] == "--no-lock"
 
         # Temp file should be cleaned up
         tmp_file = Path(bundle_cmd[2].split("=", 1)[1])
@@ -145,7 +144,6 @@ class TestBrewBundle:
 
         bundle_cmd = calls[1][0][0]
         assert f"--file={brewfile}" in bundle_cmd
-        assert "--no-lock" in bundle_cmd
 
     @patch("loadout.brew.run")
     @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
