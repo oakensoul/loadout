@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from loadout.config import LoadoutConfig
-from loadout.init import run_init
+from loadout.init import _bootstrap_canvas_config, run_init
 
 
 def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -377,3 +377,71 @@ def test_run_init_non_macos_skips_launch_agent(
 
     plist_path = tmp_path / "Library" / "LaunchAgents" / "com.oakensoul.loadout.display.plist"
     assert not plist_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# Canvas config bootstrap
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.shutil.which", return_value="/usr/local/bin/canvas")
+def test_bootstrap_canvas_config_creates_file(mock_which: MagicMock, tmp_path: Path) -> None:
+    """Should create ~/.canvas/config.json with first org."""
+    config = LoadoutConfig(user="testuser", orgs=["myorg", "other"], base_dir=tmp_path)
+    _bootstrap_canvas_config(config)
+
+    config_path = tmp_path / ".canvas" / "config.json"
+    assert config_path.exists()
+    import json
+
+    data = json.loads(config_path.read_text(encoding="utf-8"))
+    assert data == {"org": "myorg"}
+
+
+@patch("loadout.init.shutil.which", return_value="/usr/local/bin/canvas")
+def test_bootstrap_canvas_config_skips_if_exists(mock_which: MagicMock, tmp_path: Path) -> None:
+    """Should not overwrite existing config."""
+    canvas_dir = tmp_path / ".canvas"
+    canvas_dir.mkdir()
+    config_path = canvas_dir / "config.json"
+    config_path.write_text('{"org": "existing"}', encoding="utf-8")
+
+    config = LoadoutConfig(user="testuser", orgs=["neworg"], base_dir=tmp_path)
+    _bootstrap_canvas_config(config)
+
+    import json
+
+    data = json.loads(config_path.read_text(encoding="utf-8"))
+    assert data == {"org": "existing"}
+
+
+@patch("loadout.init.shutil.which", return_value=None)
+def test_bootstrap_canvas_config_skips_if_not_installed(
+    mock_which: MagicMock, tmp_path: Path
+) -> None:
+    """Should skip when canvas CLI is not installed."""
+    config = LoadoutConfig(user="testuser", orgs=["myorg"], base_dir=tmp_path)
+    _bootstrap_canvas_config(config)
+
+    config_path = tmp_path / ".canvas" / "config.json"
+    assert not config_path.exists()
+
+
+@patch("loadout.init.shutil.which", return_value="/usr/local/bin/canvas")
+def test_bootstrap_canvas_config_skips_if_no_orgs(mock_which: MagicMock, tmp_path: Path) -> None:
+    """Should skip when no orgs are configured."""
+    config = LoadoutConfig(user="testuser", orgs=[], base_dir=tmp_path)
+    _bootstrap_canvas_config(config)
+
+    config_path = tmp_path / ".canvas" / "config.json"
+    assert not config_path.exists()
+
+
+@patch("loadout.init.shutil.which", return_value="/usr/local/bin/canvas")
+def test_bootstrap_canvas_config_dry_run(mock_which: MagicMock, tmp_path: Path) -> None:
+    """Dry-run should not create the config file."""
+    config = LoadoutConfig(user="testuser", orgs=["myorg"], base_dir=tmp_path)
+    _bootstrap_canvas_config(config, dry_run=True)
+
+    config_path = tmp_path / ".canvas" / "config.json"
+    assert not config_path.exists()

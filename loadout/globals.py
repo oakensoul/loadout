@@ -29,6 +29,22 @@ def ensure_claude_code(*, dry_run: bool = False) -> None:
     )
 
 
+def ensure_devbox(*, dry_run: bool = False) -> None:
+    """Install devbox CLI if not already present."""
+    if shutil.which("devbox") is not None:
+        status_line("[green]✓[/green]", "devbox CLI", "already installed")
+        return
+    run(["pip3", "install", "oakensoul-devbox"], dry_run=dry_run)
+
+
+def ensure_canvas(*, dry_run: bool = False) -> None:
+    """Install canvas CLI if not already present."""
+    if shutil.which("canvas") is not None:
+        status_line("[green]✓[/green]", "canvas CLI", "already installed")
+        return
+    run(["pip3", "install", "oakensoul-canvas"], dry_run=dry_run)
+
+
 def ensure_nvm_node(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """Install NVM and Node LTS if not already present."""
     nvm_dir = config.home / ".nvm"
@@ -150,6 +166,8 @@ def install_globals(config: LoadoutConfig, *, dry_run: bool = False) -> None:
         lambda: ensure_nvm_node(config, dry_run=dry_run),
     )
     run_step("Ensure Claude Code CLI", lambda: ensure_claude_code(dry_run=dry_run))
+    run_step("Ensure devbox CLI", lambda: ensure_devbox(dry_run=dry_run))
+    run_step("Ensure canvas CLI", lambda: ensure_canvas(dry_run=dry_run))
     run_step("Ensure pyenv Python", lambda: ensure_pyenv_python(config, dry_run=dry_run))
 
     run_step(
