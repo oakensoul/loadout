@@ -36,6 +36,7 @@ Repository = "https://github.com/oakensoul/loadout"
 Issues = "https://github.com/oakensoul/loadout/issues"
 
 [project.optional-dependencies]
+scaffold = ["cookiecutter>=2.0"]
 dev = [
     "build>=1.0",
     "cyclonedx-bom>=4.0",
