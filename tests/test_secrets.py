@@ -42,12 +42,16 @@ def test_op_provider_read_calls_op_cli(mock_which: MagicMock, mock_run: MagicMoc
 
 
 @patch("loadout.secrets.shutil.which", return_value="/usr/local/bin/op")
-def test_op_provider_read_dry_run(mock_which: MagicMock) -> None:
-    """read(dry_run=True) should return a placeholder without calling op."""
-    provider = OnePasswordProvider()
-    result = provider.read("op://vault/item/field", dry_run=True)
+@patch("loadout.secrets.runner.run")
+def test_op_provider_read_failure_propagates(mock_run: MagicMock, mock_which: MagicMock) -> None:
+    """read() should propagate errors when op CLI fails."""
+    from loadout.exceptions import LoadoutCommandError
 
-    assert result == "DRY_RUN_SECRET"
+    mock_run.side_effect = LoadoutCommandError("op read failed")
+
+    provider = OnePasswordProvider()
+    with pytest.raises(LoadoutCommandError, match="op read failed"):
+        provider.read("op://vault/item/field")
 
 
 @patch("loadout.secrets.shutil.which", return_value=None)
@@ -149,6 +153,22 @@ secret_path = "op://V/org3/key"
     assert len(keys) == 3
     filenames = {k.filename for k in keys}
     assert filenames == {"id_org1", "id_org2", "id_org3"}
+
+
+def test_load_ssh_key_config_missing_field_raises(tmp_path: Path) -> None:
+    """Missing required field should raise SecretsProviderError."""
+    ssh_dir = tmp_path / "ssh"
+    ssh_dir.mkdir()
+    (ssh_dir / "keys.toml").write_text(
+        """\
+[keys.broken]
+filename = "id_broken"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SecretsProviderError, match="missing required field"):
+        load_ssh_key_config(tmp_path)
 
 
 def test_load_ssh_key_config_defaults_provider_to_op(tmp_path: Path) -> None:

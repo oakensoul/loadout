@@ -17,19 +17,17 @@ from loadout.exceptions import SecretsProviderError
 class SecretsProvider(Protocol):
     """Protocol for secrets providers."""
 
-    def read(self, secret_path: str, *, dry_run: bool = False) -> str: ...
+    def read(self, secret_path: str) -> str: ...
 
 
 @dataclass
 class OnePasswordProvider:
     """1Password CLI (op) secrets provider."""
 
-    def read(self, secret_path: str, *, dry_run: bool = False) -> str:
+    def read(self, secret_path: str) -> str:
         """Read a secret from 1Password via the ``op`` CLI."""
         if shutil.which("op") is None:
             raise SecretsProviderError("1Password CLI (op) not found")
-        if dry_run:
-            return "DRY_RUN_SECRET"
         result = runner.run(["op", "read", secret_path], capture=True)
         return result.stdout.strip()
 
@@ -72,11 +70,16 @@ def load_ssh_key_config(dotfiles_private_dir: Path) -> tuple[str, list[SshKeyCon
     provider_type = data.get("provider", {}).get("type", "op")
     keys: list[SshKeyConfig] = []
     for org, key_data in data.get("keys", {}).items():
-        keys.append(
-            SshKeyConfig(
-                org=org,
-                filename=key_data["filename"],
-                secret_path=key_data["secret_path"],
+        try:
+            keys.append(
+                SshKeyConfig(
+                    org=org,
+                    filename=key_data["filename"],
+                    secret_path=key_data["secret_path"],
+                )
             )
-        )
+        except KeyError as exc:
+            raise SecretsProviderError(
+                f"SSH key config for {org!r} missing required field: {exc}"
+            ) from exc
     return (provider_type, keys)
