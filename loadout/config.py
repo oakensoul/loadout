@@ -22,9 +22,7 @@ def _validate_org_names(orgs: list[str]) -> None:
     """
     for org in orgs:
         if not _ORG_NAME_RE.match(org):
-            raise LoadoutConfigError(
-                f"Invalid org name {org!r}: must match [a-zA-Z0-9_-]+"
-            )
+            raise LoadoutConfigError(f"Invalid org name {org!r}: must match [a-zA-Z0-9_-]+")
 
 
 def _toml_escape(s: str) -> str:
