@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from loadout.config import LoadoutConfig
-from loadout.init import _bootstrap_canvas_config, run_init
+from loadout.init import _bootstrap_canvas_config, _provision_ssh_keys, run_init
 
 
 def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -32,7 +32,9 @@ def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[s
 @patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
 def test_run_init_full_flow(
+    mock_ssh_config: MagicMock,
     mock_which: MagicMock,
     mock_run: MagicMock,
     mock_brew: MagicMock,
@@ -45,7 +47,7 @@ def test_run_init_full_flow(
     mock_save: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """All steps should execute in order."""
+    """All steps should execute in order (fallback to keygen, no provider config)."""
     (tmp_path / ".dotfiles").mkdir()
     (tmp_path / ".dotfiles-private").mkdir()
 
@@ -55,17 +57,9 @@ def test_run_init_full_flow(
     xcode_calls = [c for c in mock_run.call_args_list if "xcode-select" in c.args[0]]
     assert len(xcode_calls) == 1
 
-    # 3. SSH keygen
+    # 3. SSH keygen (fallback — no keys.toml)
     keygen_calls = [c for c in mock_run.call_args_list if "ssh-keygen" in c.args[0]]
     assert len(keygen_calls) == 1
-
-    # 4. SSH key registration (bash pipeline)
-    bash_calls = [
-        c
-        for c in mock_run.call_args_list
-        if c.args[0][0] == "bash" and "gh auth login" in str(c.args[0])
-    ]
-    assert len(bash_calls) == 1
 
     # 5. Switch remotes — repo names should NOT have leading dot
     set_url_calls = [c for c in mock_run.call_args_list if "set-url" in c.args[0]]
@@ -110,7 +104,9 @@ def test_run_init_full_flow(
 @patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
 def test_run_init_dry_run(
+    mock_ssh_config: MagicMock,
     mock_which: MagicMock,
     mock_run: MagicMock,
     mock_brew: MagicMock,
@@ -167,7 +163,9 @@ def test_run_init_dry_run(
 @patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
 def test_run_init_existing_dotfiles_skips_clone(
+    mock_ssh_config: MagicMock,
     mock_which: MagicMock,
     mock_run: MagicMock,
     mock_brew: MagicMock,
@@ -203,7 +201,9 @@ def test_run_init_existing_dotfiles_skips_clone(
 @patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
 def test_run_init_existing_ssh_key_skips_keygen(
+    mock_ssh_config: MagicMock,
     mock_which: MagicMock,
     mock_run: MagicMock,
     mock_brew: MagicMock,
@@ -239,7 +239,9 @@ def test_run_init_existing_ssh_key_skips_keygen(
 @patch("loadout.init.is_macos", return_value=False)
 @patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
 def test_run_init_no_op_cli_skips_ssh_registration(
+    mock_ssh_config: MagicMock,
     mock_run: MagicMock,
     mock_brew: MagicMock,
     mock_is_macos: MagicMock,
@@ -282,7 +284,9 @@ def test_run_init_no_op_cli_skips_ssh_registration(
 @patch("loadout.init.is_macos", return_value=False)
 @patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
 def test_run_init_no_brew_skips_bundle(
+    mock_ssh_config: MagicMock,
     mock_run: MagicMock,
     mock_brew: MagicMock,
     mock_is_macos: MagicMock,
@@ -321,7 +325,9 @@ def test_run_init_no_brew_skips_bundle(
 @patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
 def test_run_init_saves_config(
+    mock_ssh_config: MagicMock,
     mock_which: MagicMock,
     mock_run: MagicMock,
     mock_brew: MagicMock,
@@ -357,7 +363,9 @@ def test_run_init_saves_config(
 @patch("loadout.init.brew_bundle")
 @patch("loadout.init.runner.run", side_effect=_fake_run)
 @patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
 def test_run_init_non_macos_skips_launch_agent(
+    mock_ssh_config: MagicMock,
     mock_which: MagicMock,
     mock_run: MagicMock,
     mock_brew: MagicMock,
@@ -445,3 +453,175 @@ def test_bootstrap_canvas_config_dry_run(mock_which: MagicMock, tmp_path: Path) 
 
     config_path = tmp_path / ".canvas" / "config.json"
     assert not config_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# _provision_ssh_keys — fallback to keygen
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
+@patch("loadout.init.runner.run", side_effect=_fake_run)
+def test_provision_ssh_keys_fallback_keygen(
+    mock_run: MagicMock,
+    mock_ssh_config: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """When no keys.toml exists, should fall back to ssh-keygen."""
+    config = LoadoutConfig(user="testuser", orgs=["org1"], base_dir=tmp_path)
+
+    _provision_ssh_keys(config)
+
+    keygen_calls = [c for c in mock_run.call_args_list if "ssh-keygen" in c.args[0]]
+    assert len(keygen_calls) == 1
+    # Should target id_ed25519
+    assert str(tmp_path / ".ssh" / "id_ed25519") in keygen_calls[0].args[0]
+
+
+# ---------------------------------------------------------------------------
+# _provision_ssh_keys — from provider
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.runner.run")
+@patch("loadout.init.get_provider")
+@patch("loadout.init.load_ssh_key_config")
+def test_provision_ssh_keys_from_provider(
+    mock_ssh_config: MagicMock,
+    mock_get_provider: MagicMock,
+    mock_run: MagicMock,
+    mock_is_macos: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """When keys.toml has entries, should pull keys from provider."""
+    from loadout.secrets import SshKeyConfig
+
+    mock_ssh_config.return_value = (
+        "op",
+        [SshKeyConfig(org="acme", filename="id_acme", secret_path="op://V/acme/key")],
+    )
+    mock_provider = MagicMock()
+    mock_provider.read.return_value = "PRIVATE_KEY_DATA"
+    mock_get_provider.return_value = mock_provider
+
+    # ssh-keygen -y -f returns the public key
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["ssh-keygen"], returncode=0, stdout="ssh-ed25519 AAAA acme\n", stderr=""
+    )
+
+    config = LoadoutConfig(user="testuser", orgs=["acme"], base_dir=tmp_path)
+    pub_keys = _provision_ssh_keys(config)
+
+    # Provider should be called
+    mock_provider.read.assert_called_once_with("op://V/acme/key")
+
+    # Private key should be written
+    key_path = tmp_path / ".ssh" / "id_acme"
+    assert key_path.exists()
+    assert key_path.read_text() == "PRIVATE_KEY_DATA"
+    assert oct(key_path.stat().st_mode & 0o777) == "0o600"
+
+    # Public key should be derived
+    pub_path = tmp_path / ".ssh" / "id_acme.pub"
+    assert pub_path.exists()
+    assert pub_path.read_text().strip() == "ssh-ed25519 AAAA acme"
+
+    assert pub_keys == [pub_path]
+
+
+# ---------------------------------------------------------------------------
+# _provision_ssh_keys — existing key skips
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.load_ssh_key_config")
+def test_provision_ssh_keys_existing_key_skips(
+    mock_ssh_config: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """When a key file already exists, it should be skipped."""
+    from loadout.secrets import SshKeyConfig
+
+    mock_ssh_config.return_value = (
+        "op",
+        [SshKeyConfig(org="acme", filename="id_acme", secret_path="op://V/acme/key")],
+    )
+
+    ssh_dir = tmp_path / ".ssh"
+    ssh_dir.mkdir(parents=True)
+    (ssh_dir / "id_acme").write_text("existing key", encoding="utf-8")
+    (ssh_dir / "id_acme.pub").write_text("existing pub", encoding="utf-8")
+
+    config = LoadoutConfig(user="testuser", orgs=["acme"], base_dir=tmp_path)
+    pub_keys = _provision_ssh_keys(config)
+
+    # Should return the existing pub key
+    assert pub_keys == [ssh_dir / "id_acme.pub"]
+
+
+# ---------------------------------------------------------------------------
+# _provision_ssh_keys — keychain integration (macOS)
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.is_macos", return_value=True)
+@patch("loadout.init.runner.run")
+@patch("loadout.init.get_provider")
+@patch("loadout.init.load_ssh_key_config")
+def test_provision_ssh_keys_adds_to_keychain_on_macos(
+    mock_ssh_config: MagicMock,
+    mock_get_provider: MagicMock,
+    mock_run: MagicMock,
+    mock_is_macos: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """On macOS, provisioned keys should be added to the keychain."""
+    from loadout.secrets import SshKeyConfig
+
+    mock_ssh_config.return_value = (
+        "op",
+        [SshKeyConfig(org="acme", filename="id_acme", secret_path="op://V/acme/key")],
+    )
+    mock_provider = MagicMock()
+    mock_provider.read.return_value = "PRIVATE_KEY_DATA"
+    mock_get_provider.return_value = mock_provider
+
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["ssh-keygen"], returncode=0, stdout="ssh-ed25519 AAAA acme\n", stderr=""
+    )
+
+    config = LoadoutConfig(user="testuser", orgs=["acme"], base_dir=tmp_path)
+    _provision_ssh_keys(config)
+
+    # Should call ssh-add --apple-use-keychain
+    keychain_calls = [c for c in mock_run.call_args_list if "ssh-add" in c.args[0]]
+    assert len(keychain_calls) == 1
+    assert "--apple-use-keychain" in keychain_calls[0].args[0]
+
+
+# ---------------------------------------------------------------------------
+# _provision_ssh_keys — dry run with provider config
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.load_ssh_key_config")
+def test_provision_ssh_keys_dry_run_with_provider(
+    mock_ssh_config: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Dry-run with provider config should not write files."""
+    from loadout.secrets import SshKeyConfig
+
+    mock_ssh_config.return_value = (
+        "op",
+        [SshKeyConfig(org="acme", filename="id_acme", secret_path="op://V/acme/key")],
+    )
+
+    config = LoadoutConfig(user="testuser", orgs=["acme"], base_dir=tmp_path)
+    pub_keys = _provision_ssh_keys(config, dry_run=True)
+
+    # Should return pub path but not write the key
+    assert len(pub_keys) == 1
+    key_path = tmp_path / ".ssh" / "id_acme"
+    assert not key_path.exists()

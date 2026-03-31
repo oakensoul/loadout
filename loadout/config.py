@@ -67,6 +67,11 @@ class LoadoutConfig:
         return self.home / ".claude"
 
     @property
+    def ssh_keys_config_path(self) -> Path:
+        """Return the path to the SSH keys TOML config file."""
+        return self.dotfiles_private_dir / "ssh" / "keys.toml"
+
+    @property
     def config_path(self) -> Path:
         """Return the path to the loadout TOML config file."""
         return self.dotfiles_dir / ".loadout.toml"
