@@ -13,7 +13,9 @@ from loadout.globals import (
     _install_org_globals_scripts,
     _read_package_list,
     _run_globals_script,
+    ensure_canvas,
     ensure_claude_code,
+    ensure_devbox,
     ensure_nvm_node,
     ensure_pyenv_python,
     install_globals,
@@ -52,6 +54,76 @@ def test_ensure_claude_code_dry_run(mock_which: MagicMock, mock_run: MagicMock) 
     ensure_claude_code(dry_run=True)
     mock_run.assert_called_once_with(
         ["bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash"],
+        dry_run=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# ensure_devbox
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.globals.run")
+@patch("loadout.globals.shutil.which", return_value="/usr/local/bin/devbox")
+def test_ensure_devbox_already_installed(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Should skip install when devbox is already on PATH."""
+    ensure_devbox()
+    mock_run.assert_not_called()
+
+
+@patch("loadout.globals.run")
+@patch("loadout.globals.shutil.which", return_value=None)
+def test_ensure_devbox_installs(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Should install via pip3 when devbox is not on PATH."""
+    ensure_devbox()
+    mock_run.assert_called_once_with(
+        ["pip3", "install", "oakensoul-devbox"],
+        dry_run=False,
+    )
+
+
+@patch("loadout.globals.run")
+@patch("loadout.globals.shutil.which", return_value=None)
+def test_ensure_devbox_dry_run(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Dry-run should pass dry_run=True to runner."""
+    ensure_devbox(dry_run=True)
+    mock_run.assert_called_once_with(
+        ["pip3", "install", "oakensoul-devbox"],
+        dry_run=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# ensure_canvas
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.globals.run")
+@patch("loadout.globals.shutil.which", return_value="/usr/local/bin/canvas")
+def test_ensure_canvas_already_installed(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Should skip install when canvas is already on PATH."""
+    ensure_canvas()
+    mock_run.assert_not_called()
+
+
+@patch("loadout.globals.run")
+@patch("loadout.globals.shutil.which", return_value=None)
+def test_ensure_canvas_installs(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Should install via pip3 when canvas is not on PATH."""
+    ensure_canvas()
+    mock_run.assert_called_once_with(
+        ["pip3", "install", "oakensoul-canvas"],
+        dry_run=False,
+    )
+
+
+@patch("loadout.globals.run")
+@patch("loadout.globals.shutil.which", return_value=None)
+def test_ensure_canvas_dry_run(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Dry-run should pass dry_run=True to runner."""
+    ensure_canvas(dry_run=True)
+    mock_run.assert_called_once_with(
+        ["pip3", "install", "oakensoul-canvas"],
         dry_run=True,
     )
 

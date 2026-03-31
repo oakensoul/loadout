@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import shlex
 import shutil
 import socket
@@ -187,6 +188,39 @@ def _setup_launch_agent(
     runner.run(["launchctl", "load", str(plist_path)], dry_run=dry_run)
 
 
+def _bootstrap_canvas_config(
+    config: LoadoutConfig,
+    *,
+    dry_run: bool = False,
+) -> None:
+    """Create ~/.canvas/config.json with default org if it doesn't exist."""
+    if shutil.which("canvas") is None:
+        ui.status_line("[dim]⏭[/dim]", "Canvas config", "skipped (canvas not installed)")
+        return
+
+    if not config.orgs:
+        ui.status_line("[dim]⏭[/dim]", "Canvas config", "skipped (no orgs configured)")
+        return
+
+    canvas_dir = config.home / ".canvas"
+    config_path = canvas_dir / "config.json"
+
+    if config_path.exists():
+        ui.status_line("[green]✓[/green]", "Canvas config", "already exists")
+        return
+
+    if dry_run:
+        ui.status_line("[dim]▶[/dim]", "Canvas config", "would create (dry run)")
+        return
+
+    canvas_dir.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        json.dumps({"org": config.orgs[0]}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    ui.status_line("[green]✓[/green]", "Canvas config", f"created with org={config.orgs[0]}")
+
+
 def run_init(
     user: str,
     orgs: list[str],
@@ -279,19 +313,25 @@ def run_init(
         lambda: build_claude_config(config, dry_run=dry_run),
     )
 
-    # 10. Apply macOS defaults
+    # 10. Bootstrap canvas config
+    ui.run_step(
+        "Bootstrap canvas config",
+        lambda: _bootstrap_canvas_config(config, dry_run=dry_run),
+    )
+
+    # 11. Apply macOS defaults
     ui.run_step(
         "Apply macOS defaults",
         lambda: apply_macos_defaults(config, dry_run=dry_run),
     )
 
-    # 11. Set up display launch agent
+    # 12. Set up display launch agent
     ui.run_step(
         "Set up display launch agent",
         lambda: _setup_launch_agent(config, dry_run=dry_run),
     )
 
-    # 12. Save config
+    # 13. Save config
     if not dry_run:
         ui.run_step(
             "Save config",
