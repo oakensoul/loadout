@@ -48,6 +48,23 @@ class TestAssembleBrewfile:
         assert result[1].name == "Brewfile.acme"
         assert result[2].name == "Brewfile.initech"
 
+    def test_assemble_brewfile_with_private_base(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path)
+
+        base = config.dotfiles_dir / "brewfiles" / "Brewfile.base"
+        base.parent.mkdir(parents=True)
+        base.write_text("brew 'git'\n", encoding="utf-8")
+
+        private_base = config.dotfiles_private_dir / "brewfiles" / "base" / "Brewfile"
+        private_base.parent.mkdir(parents=True)
+        private_base.write_text("brew 'private-tool'\n", encoding="utf-8")
+
+        result = _assemble_brewfile(config)
+
+        assert len(result) == 2
+        assert result[0] == base
+        assert result[1] == private_base
+
     def test_assemble_brewfile_missing_org(self, tmp_path: Path) -> None:
         config = _make_config(tmp_path, orgs=["acme", "ghost"])
 

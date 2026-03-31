@@ -22,6 +22,7 @@ from loadout.check import (
     check_github_ssh,
     check_globals_scripts,
     check_homebrew,
+    check_macos_scripts,
     check_nvm_node,
     check_onepassword,
     check_pyenv_python,
@@ -257,6 +258,81 @@ class TestCheckGlobalsScripts:
         assert results[1].status == CheckStatus.WARN
         assert results[1].label == "globals.acme.sh"
 
+    def test_check_globals_private_base(self, tmp_path: Path) -> None:
+        dotfiles = tmp_path / ".dotfiles"
+        globals_dir = dotfiles / "globals"
+        globals_dir.mkdir(parents=True)
+        (globals_dir / "globals.base.sh").touch()
+
+        private_globals = tmp_path / ".dotfiles-private" / "globals" / "base"
+        private_globals.mkdir(parents=True)
+        (private_globals / "globals.sh").touch()
+
+        config = LoadoutConfig(base_dir=tmp_path, orgs=[])
+        results = check_globals_scripts(config)
+        assert len(results) == 2
+        assert results[0].label == "globals.base.sh"
+        assert results[1].label == "globals.sh (private base)"
+        assert results[1].status == CheckStatus.OK
+
+
+class TestCheckMacosScripts:
+    """Tests for check_macos_scripts."""
+
+    def test_no_private_scripts(self, tmp_path: Path) -> None:
+        """Returns empty list when no private macos scripts exist."""
+        config = LoadoutConfig(base_dir=tmp_path)
+        results = check_macos_scripts(config)
+        assert results == []
+
+    def test_private_base_exists(self, tmp_path: Path) -> None:
+        """Detects private base set-defaults.sh when present."""
+        private_macos = tmp_path / ".dotfiles-private" / "macos" / "base"
+        private_macos.mkdir(parents=True)
+        (private_macos / "set-defaults.sh").touch()
+
+        config = LoadoutConfig(base_dir=tmp_path)
+        results = check_macos_scripts(config)
+        assert len(results) == 1
+        assert results[0].status == CheckStatus.OK
+        assert results[0].label == "set-defaults.sh (private base)"
+
+    def test_org_script_missing(self, tmp_path: Path) -> None:
+        """Reports WARN when an org macos script is missing."""
+        config = LoadoutConfig(base_dir=tmp_path, orgs=["acme"])
+        results = check_macos_scripts(config)
+        assert len(results) == 1
+        assert results[0].status == CheckStatus.WARN
+        assert results[0].label == "set-defaults.sh (acme)"
+
+    def test_org_script_exists(self, tmp_path: Path) -> None:
+        """Detects per-org set-defaults.sh when present."""
+        org_macos = tmp_path / ".dotfiles-private" / "macos" / "orgs" / "acme"
+        org_macos.mkdir(parents=True)
+        (org_macos / "set-defaults.sh").touch()
+
+        config = LoadoutConfig(base_dir=tmp_path, orgs=["acme"])
+        results = check_macos_scripts(config)
+        assert len(results) == 1
+        assert results[0].status == CheckStatus.OK
+        assert results[0].label == "set-defaults.sh (acme)"
+
+    def test_private_base_and_org(self, tmp_path: Path) -> None:
+        """Both private base and org scripts are reported."""
+        private_macos = tmp_path / ".dotfiles-private" / "macos" / "base"
+        private_macos.mkdir(parents=True)
+        (private_macos / "set-defaults.sh").touch()
+
+        org_macos = tmp_path / ".dotfiles-private" / "macos" / "orgs" / "acme"
+        org_macos.mkdir(parents=True)
+        (org_macos / "set-defaults.sh").touch()
+
+        config = LoadoutConfig(base_dir=tmp_path, orgs=["acme"])
+        results = check_macos_scripts(config)
+        assert len(results) == 2
+        assert results[0].label == "set-defaults.sh (private base)"
+        assert results[1].label == "set-defaults.sh (acme)"
+
 
 class TestCheckClaudeConfig:
     """Tests for check_claude_config."""
@@ -296,7 +372,7 @@ class TestRunChecks:
             )
             results = run_checks(config)
         assert isinstance(results, list)
-        # 7 tool checks + brewfile fallback(1) + globals base(1) + claude config(1) = 10
+        # 7 tool checks + brewfile fallback(1) + globals base(1) + macos(0) + claude config(1) = 10
         assert len(results) == 10
         assert all(isinstance(r, CheckResult) for r in results)
 

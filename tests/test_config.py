@@ -6,7 +6,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from loadout.config import LoadoutConfig, _toml_escape, load_config, save_config
+import pytest
+
+from loadout.config import (
+    LoadoutConfig,
+    _toml_escape,
+    _validate_org_names,
+    load_config,
+    save_config,
+)
+from loadout.exceptions import LoadoutConfigError
 
 
 class TestHomeProperty:
@@ -80,16 +89,16 @@ class TestSaveConfig:
     def test_escapes_special_characters(self, tmp_path: Path) -> None:
         """Values with quotes and backslashes are properly escaped."""
         cfg = LoadoutConfig(
-            user='has"quote',
-            orgs=["back\\slash", 'more"quotes'],
+            user='has"quote\\slash',
+            orgs=["acme", "widgets"],
             base_dir=tmp_path,
         )
         save_config(cfg)
 
         loaded = load_config(base_dir=tmp_path)
 
-        assert loaded.user == 'has"quote'
-        assert loaded.orgs == ["back\\slash", 'more"quotes']
+        assert loaded.user == 'has"quote\\slash'
+        assert loaded.orgs == ["acme", "widgets"]
 
     def test_round_trip_new_fields(self, tmp_path: Path) -> None:
         """New config fields (github_token_op_path, nvm_version) round-trip correctly."""
@@ -127,3 +136,49 @@ class TestSaveConfig:
         loaded = load_config(base_dir=tmp_path)
 
         assert loaded.pyenv_version == "3.12"
+
+
+class TestOrgNameValidation:
+    """Tests for org name validation."""
+
+    def test_valid_org_names(self) -> None:
+        """Valid org names should not raise."""
+        _validate_org_names(["acme", "my-org", "org_2", "ABC123"])
+
+    def test_empty_list(self) -> None:
+        """Empty org list should not raise."""
+        _validate_org_names([])
+
+    def test_path_traversal_rejected(self) -> None:
+        """Org names with path traversal characters should raise."""
+        with pytest.raises(LoadoutConfigError, match="Invalid org name"):
+            _validate_org_names(["../../etc"])
+
+    def test_slash_rejected(self) -> None:
+        """Org names with slashes should raise."""
+        with pytest.raises(LoadoutConfigError, match="Invalid org name"):
+            _validate_org_names(["my/org"])
+
+    def test_space_rejected(self) -> None:
+        """Org names with spaces should raise."""
+        with pytest.raises(LoadoutConfigError, match="Invalid org name"):
+            _validate_org_names(["my org"])
+
+    def test_dot_rejected(self) -> None:
+        """Org names with dots should raise."""
+        with pytest.raises(LoadoutConfigError, match="Invalid org name"):
+            _validate_org_names(["my.org"])
+
+    def test_load_config_validates_orgs(self, tmp_path: Path) -> None:
+        """load_config should reject invalid org names from TOML."""
+        cfg = LoadoutConfig(user="test", orgs=["valid"], base_dir=tmp_path)
+        save_config(cfg)
+
+        # Manually edit the TOML to inject a bad org name
+        toml_path = tmp_path / ".dotfiles" / ".loadout.toml"
+        content = toml_path.read_text(encoding="utf-8")
+        content = content.replace('["valid"]', '["../../etc"]')
+        toml_path.write_text(content, encoding="utf-8")
+
+        with pytest.raises(LoadoutConfigError, match="Invalid org name"):
+            load_config(base_dir=tmp_path)

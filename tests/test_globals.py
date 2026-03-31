@@ -37,10 +37,11 @@ def test_ensure_claude_code_already_installed(mock_which: MagicMock, mock_run: M
 @patch("loadout.globals.run")
 @patch("loadout.globals.shutil.which", return_value=None)
 def test_ensure_claude_code_installs(mock_which: MagicMock, mock_run: MagicMock) -> None:
-    """Should install when claude is not on PATH."""
+    """Should install via curl installer when claude is not on PATH."""
     ensure_claude_code()
     mock_run.assert_called_once_with(
-        ["npm", "install", "-g", "@anthropic-ai/claude-code"], dry_run=False
+        ["bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash"],
+        dry_run=False,
     )
 
 
@@ -50,7 +51,8 @@ def test_ensure_claude_code_dry_run(mock_which: MagicMock, mock_run: MagicMock) 
     """Dry-run should pass dry_run=True to runner."""
     ensure_claude_code(dry_run=True)
     mock_run.assert_called_once_with(
-        ["npm", "install", "-g", "@anthropic-ai/claude-code"], dry_run=True
+        ["bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash"],
+        dry_run=True,
     )
 
 
