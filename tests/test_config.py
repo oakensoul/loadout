@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from loadout.config import LoadoutConfig, _toml_escape, _validate_org_names, load_config, save_config
+from loadout.config import (
+    LoadoutConfig,
+    _toml_escape,
+    _validate_org_names,
+    load_config,
+    save_config,
+)
 from loadout.exceptions import LoadoutConfigError
 
 
