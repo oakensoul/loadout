@@ -8,6 +8,12 @@ to fully configured in one command.
 Loadout orchestrates dotfile building, Homebrew, global package installs, and
 health checks across multiple user/org contexts.
 
+## Getting Started
+
+**Looking to set up your Mac?** The [dotfiles](https://github.com/oakensoul/dotfiles) repository is the recommended starting point. It includes a comprehensive setup guide and serves as the base layer for the Loadout configuration system. Fork it, customize it, and use `loadout init` to bootstrap your machine.
+
+This repository contains the `loadout` CLI tool itself. Read on if you're developing the tool or building your own configuration system.
+
 ## Prerequisites
 
 - **Python 3.11+** — required runtime
@@ -17,6 +23,10 @@ health checks across multiple user/org contexts.
 - **GitHub CLI (`gh`)** — optional, used during `init` for SSH key registration
 
 ## Install
+
+**For Mac setup**, start with the [dotfiles](https://github.com/oakensoul/dotfiles) repo — it walks you through the full process including installing loadout.
+
+**For standalone or custom use** (building your own config system, or developing the CLI):
 
 ```bash
 # Clone and install in development mode
