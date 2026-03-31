@@ -50,7 +50,7 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """Run brew update and brew bundle if Homebrew and a Brewfile are available.
 
     Assembles Brewfile fragments from the dotfiles and dotfiles-private repos
-    into a temporary file, then runs ``brew bundle --file=<temp> --no-lock``.
+    into a temporary file, then runs ``brew bundle --file=<temp>``.
     Falls back to a single ``Brewfile`` in the dotfiles root if no fragments
     are found.  Gracefully skips when brew is not installed or no Brewfile
     exists.
@@ -78,7 +78,11 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
 
             run(["brew", "update"], dry_run=dry_run)
             run(
-                ["brew", "bundle", f"--file={tmp_path}", "--no-lock"],
+                [
+                    "brew",
+                    "bundle",
+                    f"--file={tmp_path}",
+                ],
                 dry_run=dry_run,
             )
         finally:
@@ -91,7 +95,14 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     if brewfile.exists():
         verbose_line(f"Using legacy Brewfile: {brewfile}")
         run(["brew", "update"], dry_run=dry_run)
-        run(["brew", "bundle", f"--file={brewfile}", "--no-lock"], dry_run=dry_run)
+        run(
+            [
+                "brew",
+                "bundle",
+                f"--file={brewfile}",
+            ],
+            dry_run=dry_run,
+        )
         return
 
     status_line("[yellow]![/yellow]", "Brewfile", "not found — skipping")
