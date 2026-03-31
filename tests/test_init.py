@@ -9,7 +9,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from loadout.config import LoadoutConfig
-from loadout.init import _bootstrap_canvas_config, _provision_ssh_keys, run_init
+from loadout.init import (
+    _bootstrap_canvas_config,
+    _ensure_gh_authenticated,
+    _provision_ssh_keys,
+    run_init,
+)
 
 
 def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -121,8 +126,12 @@ def test_run_init_dry_run(
     """Mutating calls should receive dry_run=True; save_config skipped."""
     run_init("testuser", ["org1"], base_dir=tmp_path, dry_run=True)
 
-    # All runner.run calls should have dry_run=True
+    # All mutating runner.run calls should have dry_run=True
+    # Read-only calls (gh auth status) are exempt
     for c in mock_run.call_args_list:
+        cmd = c.args[0] if c.args else []
+        if cmd == ["gh", "auth", "status"]:
+            continue  # read-only check, always runs
         assert c.kwargs.get("dry_run") is True, f"Expected dry_run=True: {c}"
 
     # build_dotfiles should get dry_run=True
@@ -453,6 +462,56 @@ def test_bootstrap_canvas_config_dry_run(mock_which: MagicMock, tmp_path: Path) 
 
     config_path = tmp_path / ".canvas" / "config.json"
     assert not config_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# _ensure_gh_authenticated
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.runner.run")
+@patch("loadout.init.shutil.which", return_value="/usr/bin/gh")
+def test_ensure_gh_already_authenticated(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Should return True without browser auth when already logged in."""
+    mock_run.return_value = subprocess.CompletedProcess(
+        args=["gh", "auth", "status"], returncode=0, stdout="", stderr=""
+    )
+    assert _ensure_gh_authenticated() is True
+    mock_run.assert_called_once_with(["gh", "auth", "status"], capture=True, check=False)
+
+
+@patch("loadout.init.shutil.which", return_value=None)
+def test_ensure_gh_not_installed(mock_which: MagicMock) -> None:
+    """Should return False when gh CLI is not found."""
+    assert _ensure_gh_authenticated() is False
+
+
+@patch("loadout.init.runner.run")
+@patch("loadout.init.shutil.which", return_value="/usr/bin/gh")
+def test_ensure_gh_triggers_browser_auth(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Should open browser auth when not logged in."""
+    mock_run.side_effect = [
+        # First call: gh auth status — not authenticated
+        subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=""),
+        # Second call: gh auth login --web -p ssh — success
+        subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+    ]
+    assert _ensure_gh_authenticated() is True
+    assert mock_run.call_count == 2
+    login_call = mock_run.call_args_list[1]
+    assert "auth" in login_call.args[0]
+    assert "login" in login_call.args[0]
+    assert "--web" in login_call.args[0]
+
+
+@patch("loadout.init.runner.run")
+@patch("loadout.init.shutil.which", return_value="/usr/bin/gh")
+def test_ensure_gh_dry_run(mock_which: MagicMock, mock_run: MagicMock) -> None:
+    """Dry run should skip browser auth."""
+    mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="")
+    assert _ensure_gh_authenticated(dry_run=True) is True
+    # Should only call auth status, not auth login
+    assert mock_run.call_count == 1
 
 
 # ---------------------------------------------------------------------------
