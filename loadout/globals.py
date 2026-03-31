@@ -101,11 +101,10 @@ def install_pip_globals(packages: list[str], *, dry_run: bool = False) -> None:
         run(["pip", "install", "--user", package], dry_run=dry_run)
 
 
-def _run_base_globals_script(config: LoadoutConfig, *, dry_run: bool = False) -> None:
-    """Run the public base globals shell script if it exists."""
-    script = config.dotfiles_dir / "globals" / "globals.base.sh"
+def _run_globals_script(script: Path, *, dry_run: bool = False) -> None:
+    """Run a globals shell script if it exists."""
     if not script.exists():
-        verbose_line(f"Base globals script not found: {script}")
+        verbose_line(f"Globals script not found: {script}")
         return
     run(["bash", "-euo", "pipefail", str(script)], dry_run=dry_run)
 
@@ -148,16 +147,29 @@ def install_globals(config: LoadoutConfig, *, dry_run: bool = False) -> None:
 
     run_step(
         "Run base globals script",
-        lambda: _run_base_globals_script(config, dry_run=dry_run),
+        lambda: _run_globals_script(
+            config.dotfiles_dir / "globals" / "globals.base.sh", dry_run=dry_run
+        ),
+    )
+    run_step(
+        "Run private base globals script",
+        lambda: _run_globals_script(
+            config.dotfiles_private_dir / "globals" / "globals.private.sh",
+            dry_run=dry_run,
+        ),
     )
     run_step(
         "Install org globals scripts",
         lambda: _install_org_globals_scripts(config, dry_run=dry_run),
     )
 
-    # Collect npm and pip packages from org config files
+    # Collect npm and pip packages from private base and org config files
     npm_packages: list[str] = []
     pip_packages: list[str] = []
+
+    private_base_dir = config.dotfiles_private_dir / "dotfiles" / "base"
+    npm_packages.extend(_read_package_list(private_base_dir / "npm-globals.txt"))
+    pip_packages.extend(_read_package_list(private_base_dir / "pip-globals.txt"))
 
     for org in config.orgs:
         org_dir = config.dotfiles_private_dir / "dotfiles" / "orgs" / org

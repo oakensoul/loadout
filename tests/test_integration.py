@@ -23,13 +23,20 @@ from loadout.config import LoadoutConfig, load_config, save_config
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _setup_from_fixtures(tmp_path: Path, orgs: list[str]) -> LoadoutConfig:
+def _setup_from_fixtures(
+    tmp_path: Path, orgs: list[str], *, include_private_base: bool = True
+) -> LoadoutConfig:
     """Copy fixture dotfiles into a temp dir and return a config pointing there."""
     dotfiles_dest = tmp_path / ".dotfiles"
     private_dest = tmp_path / ".dotfiles-private"
 
     shutil.copytree(FIXTURES / "dotfiles", dotfiles_dest)
     shutil.copytree(FIXTURES / "dotfiles-private", private_dest)
+
+    if not include_private_base:
+        private_base = private_dest / "dotfiles" / "base"
+        if private_base.exists():
+            shutil.rmtree(private_base)
 
     return LoadoutConfig(user="testuser", orgs=orgs, base_dir=tmp_path)
 
@@ -42,13 +49,13 @@ class TestBuildIntegration:
 
     def test_single_org_concat(self, tmp_path: Path) -> None:
         """Concat strategy merges base + org for .zshrc and .aliases."""
-        config = _setup_from_fixtures(tmp_path, ["acme"])
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=["acme"])
         build_dotfiles(config)
 
         zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
         assert "export PATH" in zshrc  # from base
         assert "ACME_ENV" in zshrc  # from acme org
-        assert "# --- org overlay: acme ---" in zshrc
+        assert "# --- overlay: acme ---" in zshrc
 
         aliases = (tmp_path / ".aliases").read_text(encoding="utf-8")
         assert 'alias ll="ls -la"' in aliases  # from base
@@ -56,7 +63,7 @@ class TestBuildIntegration:
 
     def test_single_org_gitconfig_includes(self, tmp_path: Path) -> None:
         """Gitconfig strategy creates include directives and .gitconfig.d/."""
-        config = _setup_from_fixtures(tmp_path, ["acme"])
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=["acme"])
         build_dotfiles(config)
 
         gitconfig = (tmp_path / ".gitconfig").read_text(encoding="utf-8")
@@ -71,7 +78,7 @@ class TestBuildIntegration:
 
     def test_single_org_json_deep_merge(self, tmp_path: Path) -> None:
         """JSON strategy deep-merges, org wins on conflict."""
-        config = _setup_from_fixtures(tmp_path, ["acme"])
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=["acme"])
         build_dotfiles(config)
 
         data = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
@@ -83,7 +90,7 @@ class TestBuildIntegration:
 
     def test_single_org_yaml_deep_merge(self, tmp_path: Path) -> None:
         """YAML strategy deep-merges, org wins on conflict."""
-        config = _setup_from_fixtures(tmp_path, ["acme"])
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=["acme"])
         build_dotfiles(config)
 
         data = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
@@ -94,7 +101,7 @@ class TestBuildIntegration:
 
     def test_single_org_replace(self, tmp_path: Path) -> None:
         """Replace strategy fully replaces base file with org file."""
-        config = _setup_from_fixtures(tmp_path, ["acme"])
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=["acme"])
         build_dotfiles(config)
 
         vimrc = (tmp_path / ".vimrc").read_text(encoding="utf-8")
@@ -103,19 +110,23 @@ class TestBuildIntegration:
 
     def test_multiple_orgs_cumulative_concat(self, tmp_path: Path) -> None:
         """Multiple orgs concatenate cumulatively on .zshrc."""
-        config = _setup_from_fixtures(tmp_path, ["acme", "widgets"])
+        config = _setup_from_fixtures(
+            tmp_path, include_private_base=False, orgs=["acme", "widgets"]
+        )
         build_dotfiles(config)
 
         zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
         assert "export PATH" in zshrc  # base
         assert "ACME_ENV" in zshrc  # acme
         assert "WIDGETS_API" in zshrc  # widgets
-        assert "# --- org overlay: acme ---" in zshrc
-        assert "# --- org overlay: widgets ---" in zshrc
+        assert "# --- overlay: acme ---" in zshrc
+        assert "# --- overlay: widgets ---" in zshrc
 
     def test_multiple_orgs_gitconfig_includes(self, tmp_path: Path) -> None:
         """Both orgs get include directives in .gitconfig."""
-        config = _setup_from_fixtures(tmp_path, ["acme", "widgets"])
+        config = _setup_from_fixtures(
+            tmp_path, include_private_base=False, orgs=["acme", "widgets"]
+        )
         build_dotfiles(config)
 
         gitconfig = (tmp_path / ".gitconfig").read_text(encoding="utf-8")
@@ -126,7 +137,9 @@ class TestBuildIntegration:
 
     def test_multiple_orgs_json_layered_merge(self, tmp_path: Path) -> None:
         """Second org's JSON values override first org's on conflict."""
-        config = _setup_from_fixtures(tmp_path, ["acme", "widgets"])
+        config = _setup_from_fixtures(
+            tmp_path, include_private_base=False, orgs=["acme", "widgets"]
+        )
         build_dotfiles(config)
 
         data = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
@@ -136,7 +149,9 @@ class TestBuildIntegration:
 
     def test_multiple_orgs_yaml_layered_merge(self, tmp_path: Path) -> None:
         """Second org's YAML values override first org's on conflict."""
-        config = _setup_from_fixtures(tmp_path, ["acme", "widgets"])
+        config = _setup_from_fixtures(
+            tmp_path, include_private_base=False, orgs=["acme", "widgets"]
+        )
         build_dotfiles(config)
 
         data = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
@@ -148,7 +163,7 @@ class TestBuildIntegration:
 
     def test_build_creates_build_dir(self, tmp_path: Path) -> None:
         """Build dir is created and contains intermediate files."""
-        config = _setup_from_fixtures(tmp_path, ["acme"])
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=["acme"])
         build_dotfiles(config)
 
         assert config.build_dir.exists()
@@ -156,7 +171,7 @@ class TestBuildIntegration:
 
     def test_build_is_idempotent(self, tmp_path: Path) -> None:
         """Running build twice produces the same output."""
-        config = _setup_from_fixtures(tmp_path, ["acme"])
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=["acme"])
 
         build_dotfiles(config)
         first_zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
@@ -171,21 +186,126 @@ class TestBuildIntegration:
 
     def test_no_orgs_base_only(self, tmp_path: Path) -> None:
         """With no orgs, base files are installed unmodified."""
-        config = _setup_from_fixtures(tmp_path, [])
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=[])
         build_dotfiles(config)
 
         zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
         assert "export PATH" in zshrc
-        assert "org overlay" not in zshrc
+        assert "# --- overlay:" not in zshrc
 
     def test_nonexistent_org_graceful(self, tmp_path: Path) -> None:
         """A non-existent org in the config is silently skipped."""
-        config = _setup_from_fixtures(tmp_path, ["acme", "nonexistent"])
+        config = _setup_from_fixtures(
+            tmp_path, include_private_base=False, orgs=["acme", "nonexistent"]
+        )
         build_dotfiles(config)
 
         zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
         assert "ACME_ENV" in zshrc
         assert "nonexistent" not in zshrc
+
+
+# ── Private base layer integration ─────────────────────────────────────────
+
+
+class TestPrivateBaseBuildIntegration:
+    """Build tests exercising the private base layer between public base and orgs."""
+
+    def test_private_base_only_no_orgs(self, tmp_path: Path) -> None:
+        """Private base merges on top of public base when no orgs are configured."""
+        config = _setup_from_fixtures(tmp_path, orgs=[])
+        build_dotfiles(config)
+
+        # Concat: public base + private base
+        zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
+        assert "export PATH" in zshrc  # from public base
+        assert "PRIVATE_BASE_VAR" in zshrc  # from private base
+        assert "# --- overlay: private-base ---" in zshrc
+
+        # JSON deep-merge: private base wins on conflict
+        data = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert data["editor"] == "vim"  # from public base
+        assert data["theme"] == "private-dark"  # private base wins over "dark"
+        assert data["private_flag"] is True  # from private base
+
+        # YAML deep-merge
+        ydata = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
+        assert ydata["opts"]["pager"] == "bat-private"  # private base wins over "less"
+
+        # Replace: private base replaces public base
+        vimrc = (tmp_path / ".vimrc").read_text(encoding="utf-8")
+        assert "tabstop=3" in vimrc  # from private base
+        assert "set number" not in vimrc  # public base is gone
+
+    def test_private_base_plus_single_org(self, tmp_path: Path) -> None:
+        """Three-layer merge: org wins over private base, which wins over public base."""
+        config = _setup_from_fixtures(tmp_path, orgs=["acme"])
+        build_dotfiles(config)
+
+        # JSON: org wins over private base
+        data = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert data["editor"] == "vim"  # public base survives
+        assert data["theme"] == "light"  # acme wins over private-dark
+        assert data["private_flag"] is True  # private base survives (acme doesn't override)
+        assert data["acme_specific"] is True  # from acme
+
+        # YAML: org wins over private base
+        ydata = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
+        assert ydata["opts"]["pager"] == "bat"  # acme wins over bat-private
+
+    def test_private_base_plus_multiple_orgs(self, tmp_path: Path) -> None:
+        """Full stack: public base < private base < acme < widgets."""
+        config = _setup_from_fixtures(tmp_path, orgs=["acme", "widgets"])
+        build_dotfiles(config)
+
+        data = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert data["editor"] == "vim"  # public base survives
+        assert data["theme"] == "solarized"  # widgets wins over all
+        assert data["private_flag"] is True  # private base survives
+
+        ydata = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
+        assert ydata["opts"]["pager"] == "more"  # widgets wins
+
+    def test_private_base_concat_ordering(self, tmp_path: Path) -> None:
+        """Concat output contains separators in correct order."""
+        config = _setup_from_fixtures(tmp_path, orgs=["acme"])
+        build_dotfiles(config)
+
+        zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
+        pb_pos = zshrc.index("# --- overlay: private-base ---")
+        org_pos = zshrc.index("# --- overlay: acme ---")
+        assert pb_pos < org_pos  # private base before org
+
+    def test_private_base_gitconfig_include(self, tmp_path: Path) -> None:
+        """Gitconfig includes private-base before org includes."""
+        config = _setup_from_fixtures(tmp_path, orgs=["acme"])
+        build_dotfiles(config)
+
+        gitconfig = (tmp_path / ".gitconfig").read_text(encoding="utf-8")
+        assert "path = ~/.gitconfig.d/private-base" in gitconfig
+        assert "path = ~/.gitconfig.d/acme" in gitconfig
+
+        pb_pos = gitconfig.index("path = ~/.gitconfig.d/private-base")
+        org_pos = gitconfig.index("path = ~/.gitconfig.d/acme")
+        assert pb_pos < org_pos  # private-base included before org
+
+        pb_file = tmp_path / ".gitconfig.d" / "private-base"
+        assert pb_file.exists()
+        assert "editor = nano" in pb_file.read_text(encoding="utf-8")
+
+    def test_private_base_absent_backwards_compatible(self, tmp_path: Path) -> None:
+        """When private base dir is absent, behavior matches original two-layer model."""
+        config = _setup_from_fixtures(tmp_path, include_private_base=False, orgs=["acme"])
+        build_dotfiles(config)
+
+        zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
+        assert "PRIVATE_BASE_VAR" not in zshrc
+        assert "# --- overlay: private-base ---" not in zshrc
+        assert "# --- overlay: acme ---" in zshrc
+
+        data = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+        assert data["theme"] == "light"  # acme wins over public base directly
+        assert "private_flag" not in data
 
 
 # ── Config round-trip integration ───────────────────────────────────────────

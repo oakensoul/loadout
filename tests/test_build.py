@@ -78,12 +78,12 @@ class TestMergeConcat:
         dest = tmp_path / "dest" / ".zshrc"
         dest.parent.mkdir()
 
-        _merge_concat(base, org, dest)
+        _merge_concat(base, org, dest, "test-org")
 
         content = dest.read_text(encoding="utf-8")
         assert "# base config" in content
         assert "export FOO=1" in content
-        assert "# --- org overlay: org ---" in content
+        assert "# --- overlay: test-org ---" in content
         assert "export BAR=2" in content
 
     def test_concat_without_base(self, tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ class TestMergeConcat:
         dest = tmp_path / "dest" / ".zshrc"
         dest.parent.mkdir()
 
-        _merge_concat(base, org, dest)
+        _merge_concat(base, org, dest, "test-org")
 
         content = dest.read_text(encoding="utf-8")
         assert "export BAR=2" in content
@@ -315,7 +315,7 @@ class TestBuildDotfiles:
         zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
         assert "# base zshrc" in zshrc
         assert "# acme zshrc" in zshrc
-        assert "# --- org overlay:" in zshrc
+        assert "# --- overlay:" in zshrc
 
         # Verify gitconfig includes.
         gitconfig = (tmp_path / ".gitconfig").read_text(encoding="utf-8")
@@ -359,7 +359,7 @@ class TestBuildDotfiles:
         assert (tmp_path / ".zshrc").exists()
         zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
         assert "# base zshrc" in zshrc
-        assert "org overlay" not in zshrc
+        assert "# --- overlay:" not in zshrc
 
     def test_build_multiple_orgs(self, tmp_path: Path) -> None:
         config = _setup_dotfiles(tmp_path, ["alpha", "beta"])

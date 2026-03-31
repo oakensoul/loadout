@@ -128,16 +128,24 @@ loadout display solo         # force laptop-solo mode
 
 ### Dotfile Merge Strategies
 
-Loadout merges `~/.dotfiles/dotfiles/base/` (public) with
-`~/.dotfiles-private/dotfiles/orgs/<org>/` (private) using per-file strategies:
+Loadout merges three layers of configuration using per-file strategies:
+
+| Layer | Source | Priority |
+|-------|--------|----------|
+| Public base | `~/.dotfiles/dotfiles/base/` | Lowest |
+| Private base | `~/.dotfiles-private/dotfiles/base/` | Middle (optional) |
+| Org overlays | `~/.dotfiles-private/dotfiles/orgs/<org>/` | Highest (last org wins) |
+
+The private base layer is for personal private config that applies across all
+orgs. When the directory does not exist, the pipeline uses two layers as before.
 
 | File type | Strategy | Behavior |
 |-----------|----------|----------|
-| `.zshrc`, `.aliases`, `.zprofile`, `.zshenv` | Concatenation | Base + org appended with separator |
-| `.gitconfig` | Include | Git native `[include]` directives to `~/.gitconfig.d/<org>` |
-| `*.json` | Deep merge | Recursive merge, org wins on conflict |
-| `*.yaml`, `*.yml` | Deep merge | Recursive merge, org wins on conflict |
-| Everything else | Replace | Org file replaces base entirely |
+| `.zshrc`, `.aliases`, `.zprofile`, `.zshenv` | Concatenation | Layers appended with separators |
+| `.gitconfig` | Include | Git native `[include]` directives to `~/.gitconfig.d/` |
+| `*.json` | Deep merge | Recursive merge, later layers win on conflict |
+| `*.yaml`, `*.yml` | Deep merge | Recursive merge, later layers win on conflict |
+| Everything else | Replace | Later layer replaces earlier entirely |
 
 Output is staged to `~/.dotfiles/build/` (via atomic temp-dir swap) then copied to `~/`.
 Existing files are backed up to `~/.dotfiles/backups/` before overwriting.
@@ -171,13 +179,24 @@ Idempotent — safe to re-run.
     └── defaults-laptop-*.sh
 
 ~/.dotfiles-private/                # oakensoul/dotfiles-private
-├── brewfiles/orgs/
-│   └── Brewfile.<org>              # per-org Homebrew packages
-├── dotfiles/orgs/<org>/
-│   ├── .zshrc, .gitconfig          # per-org dotfile overlays
-├── globals/orgs/
-│   └── globals.<org>.sh            # per-org env vars (sourced, not executed)
+├── brewfiles/
+│   ├── Brewfile.private            # private base Homebrew packages (optional)
+│   └── orgs/
+│       └── Brewfile.<org>          # per-org Homebrew packages
+├── dotfiles/
+│   ├── base/                       # private base dotfiles (optional)
+│   │   ├── .zshrc, .gitconfig      # private defaults for all orgs
+│   │   └── npm-globals.txt         # private base npm packages
+│   └── orgs/<org>/
+│       ├── .zshrc, .gitconfig      # per-org dotfile overlays
+├── globals/
+│   ├── globals.private.sh          # private base globals script (optional)
+│   └── orgs/
+│       └── globals.<org>.sh        # per-org env vars (sourced, not executed)
 └── claude/
+    ├── base/                       # private base Claude config (optional)
+    │   ├── mcp-private.json        # private base MCP config
+    │   └── CLAUDE.md               # private base CLAUDE.md overlay
     ├── orgs/<org>/
     │   ├── mcp-<org>.json          # per-org MCP config
     │   └── CLAUDE.md               # per-org CLAUDE.md overlay
@@ -191,7 +210,8 @@ Loadout assembles Brewfiles from fragments before running `brew bundle`:
 
 | Source | Path | Included |
 |--------|------|----------|
-| Base | `~/.dotfiles/brewfiles/Brewfile.base` | Always |
+| Public base | `~/.dotfiles/brewfiles/Brewfile.base` | Always |
+| Private base | `~/.dotfiles-private/brewfiles/Brewfile.private` | If present |
 | Per-org | `~/.dotfiles-private/brewfiles/orgs/Brewfile.<org>` | For each configured org |
 
 Fragments are concatenated into a single temp file and passed to
@@ -204,10 +224,12 @@ Loadout assembles Claude Code config from both repos into `~/.claude/`:
 
 | Source | Target | Strategy |
 |--------|--------|----------|
-| `claude/base/mcp-shared.json` + `claude/orgs/<org>/mcp-<org>.json` | `~/.claude/mcp.json` | Deep merge (org wins on conflict) |
-| `claude/CLAUDE.md.template` + `claude/orgs/<org>/CLAUDE.md` | `~/.claude/CLAUDE.md` | Concatenation with separators |
+| `claude/base/mcp-shared.json` + `claude/base/mcp-private.json` + `claude/orgs/<org>/mcp-<org>.json` | `~/.claude/mcp.json` | Deep merge (later layers win) |
+| `claude/CLAUDE.md.template` + `claude/base/CLAUDE.md` + `claude/orgs/<org>/CLAUDE.md` | `~/.claude/CLAUDE.md` | Concatenation with separators |
 | `claude/statusline.sh` | `~/.claude/statusline.sh` | Copy |
 | `claude/providers/*.sh` | `~/.claude/providers/` | Copy |
+
+The private base Claude config (`claude/base/` in dotfiles-private) is optional.
 
 ### macOS Defaults
 

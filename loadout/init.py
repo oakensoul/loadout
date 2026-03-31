@@ -19,6 +19,43 @@ from loadout.globals import install_globals
 from loadout.macos import apply_macos_defaults
 
 
+def _ensure_xcode_cli_tools(*, dry_run: bool = False) -> None:
+    """Ensure Xcode Command Line Tools are installed (macOS only).
+
+    On a fresh Mac, git and other developer tools require the CLI tools.
+    Checks via ``xcode-select -p``; if missing, triggers the install and
+    waits for completion.
+    """
+    if not is_macos():
+        ui.status_line("[dim]\u23ed[/dim]", "Xcode CLI Tools", "skipped (not macOS)")
+        return
+
+    result = runner.run(["xcode-select", "-p"], capture=True, check=False)
+    if result.returncode == 0:
+        ui.status_line("[green]\u2713[/green]", "Xcode CLI Tools", "already installed")
+        return
+
+    if dry_run:
+        ui.status_line("[dim]\u25b6[/dim]", "Xcode CLI Tools", "would install (dry run)")
+        return
+
+    # xcode-select --install opens a GUI dialog; the touch-file trick
+    # allows a headless install via softwareupdate instead.
+    runner.run(
+        [
+            "bash",
+            "-euo",
+            "pipefail",
+            "-c",
+            "touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress && "
+            'PROD=$(softwareupdate -l 2>&1 | grep -B 1 "Command Line Tools" '
+            '| grep -o "Command Line Tools.*" | head -1) && '
+            'softwareupdate -i "$PROD" --verbose && '
+            "rm -f /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress",
+        ],
+    )
+
+
 def _clone_repo(
     url: str,
     dest: Path,
@@ -159,7 +196,7 @@ def run_init(
 ) -> None:
     """Execute the full machine bootstrap flow.
 
-    This is the 11-step init sequence that sets up a new machine from scratch.
+    This is the 12-step init sequence that sets up a new machine from scratch.
     Steps are fail-fast: if any step raises, subsequent steps are skipped.
     Platform-conditional steps (macOS defaults, launch agent) are no-ops on
     non-macOS platforms.
@@ -171,7 +208,13 @@ def run_init(
 
     ui.section_header("Machine Bootstrap")
 
-    # 1. Clone dotfiles repos
+    # 1. Ensure Xcode CLI Tools (macOS — needed for git, brew, etc.)
+    ui.run_step(
+        "Ensure Xcode CLI Tools",
+        lambda: _ensure_xcode_cli_tools(dry_run=dry_run),
+    )
+
+    # 2. Clone dotfiles repos
     def _clone_repos() -> None:
         _clone_repo(
             f"https://github.com/{user}/dotfiles.git",
@@ -186,13 +229,13 @@ def run_init(
 
     ui.run_step("Clone dotfiles repos", _clone_repos)
 
-    # 2. Generate SSH key
+    # 3. Generate SSH key
     ui.run_step(
         "Generate SSH key",
         lambda: _generate_ssh_key(user, ssh_key_path, dry_run=dry_run),
     )
 
-    # 3. Register SSH key with GitHub
+    # 4. Register SSH key with GitHub
     ui.run_step(
         "Register SSH key with GitHub",
         lambda: _register_ssh_key_with_github(
@@ -202,7 +245,7 @@ def run_init(
         ),
     )
 
-    # 4. Switch remotes to SSH
+    # 5. Switch remotes to SSH
     ui.run_step(
         "Switch remotes to SSH",
         lambda: _switch_remotes_to_ssh(
@@ -212,43 +255,43 @@ def run_init(
         ),
     )
 
-    # 5. Build dotfiles
+    # 6. Build dotfiles
     ui.run_step(
         "Build dotfiles",
         lambda: build_dotfiles(config, dry_run=dry_run),
     )
 
-    # 6. Brew bundle
+    # 7. Brew bundle
     ui.run_step(
         "Brew bundle",
         lambda: brew_bundle(config, dry_run=dry_run),
     )
 
-    # 7. Install globals
+    # 8. Install globals
     ui.run_step(
         "Install globals",
         lambda: install_globals(config, dry_run=dry_run),
     )
 
-    # 8. Build Claude config
+    # 9. Build Claude config
     ui.run_step(
         "Build Claude config",
         lambda: build_claude_config(config, dry_run=dry_run),
     )
 
-    # 9. Apply macOS defaults
+    # 10. Apply macOS defaults
     ui.run_step(
         "Apply macOS defaults",
         lambda: apply_macos_defaults(config, dry_run=dry_run),
     )
 
-    # 10. Set up display launch agent
+    # 11. Set up display launch agent
     ui.run_step(
         "Set up display launch agent",
         lambda: _setup_launch_agent(config, dry_run=dry_run),
     )
 
-    # 11. Save config
+    # 12. Save config
     if not dry_run:
         ui.run_step(
             "Save config",
