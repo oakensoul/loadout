@@ -4,11 +4,27 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from loadout.exceptions import LoadoutConfigError
+
+_ORG_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def _validate_org_names(orgs: list[str]) -> None:
+    """Validate that all org names contain only safe characters.
+
+    Raises :class:`LoadoutConfigError` if any org name contains characters
+    outside ``[a-zA-Z0-9_-]`` (path traversal protection).
+    """
+    for org in orgs:
+        if not _ORG_NAME_RE.match(org):
+            raise LoadoutConfigError(
+                f"Invalid org name {org!r}: must match [a-zA-Z0-9_-]+"
+            )
 
 
 def _toml_escape(s: str) -> str:
@@ -76,10 +92,13 @@ def load_config(base_dir: Path | None = None) -> LoadoutConfig:
     except tomllib.TOMLDecodeError as exc:
         raise LoadoutConfigError(f"Invalid TOML in {path}: {exc}") from exc
 
+    orgs = data.get("orgs", [])
+    _validate_org_names(orgs)
+
     defaults = LoadoutConfig()
     return LoadoutConfig(
         user=data.get("user", ""),
-        orgs=data.get("orgs", []),
+        orgs=orgs,
         base_dir=base_dir,
         github_token_op_path=data.get("github_token_op_path", defaults.github_token_op_path),
         nvm_version=data.get("nvm_version", defaults.nvm_version),

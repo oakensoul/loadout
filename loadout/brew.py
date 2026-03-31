@@ -18,7 +18,7 @@ def _assemble_brewfile(config: LoadoutConfig) -> list[Path]:
 
     Looks for:
     - ``{dotfiles_dir}/brewfiles/Brewfile.base`` (always included if present)
-    - ``{dotfiles_private_dir}/brewfiles/Brewfile.private`` (private base, if present)
+    - ``{dotfiles_private_dir}/brewfiles/base/Brewfile`` (private base, if present)
     - ``{dotfiles_private_dir}/brewfiles/orgs/Brewfile.{org}`` for each org
 
     Missing files are silently skipped.

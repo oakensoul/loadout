@@ -257,6 +257,42 @@ def check_globals_scripts(config: LoadoutConfig) -> list[CheckResult]:
     return results
 
 
+def check_macos_scripts(config: LoadoutConfig) -> list[CheckResult]:
+    """Check macOS defaults scripts in the dotfiles-private directory structure."""
+    results: list[CheckResult] = []
+
+    private_base_script = config.dotfiles_private_dir / "macos" / "base" / "set-defaults.sh"
+    if private_base_script.exists():
+        results.append(
+            CheckResult(
+                status=CheckStatus.OK,
+                label="set-defaults.sh (private base)",
+                detail=f"found at {private_base_script}",
+            )
+        )
+
+    for org in config.orgs:
+        org_script = config.dotfiles_private_dir / "macos" / "orgs" / org / "set-defaults.sh"
+        if org_script.exists():
+            results.append(
+                CheckResult(
+                    status=CheckStatus.OK,
+                    label=f"set-defaults.sh ({org})",
+                    detail=f"found at {org_script}",
+                )
+            )
+        else:
+            results.append(
+                CheckResult(
+                    status=CheckStatus.WARN,
+                    label=f"set-defaults.sh ({org})",
+                    detail=f"not found at {org_script}",
+                )
+            )
+
+    return results
+
+
 def check_claude_config(config: LoadoutConfig) -> CheckResult:
     """Check if Claude MCP config exists and is valid JSON."""
     mcp_json = config.claude_dir / "mcp.json"
@@ -290,6 +326,7 @@ def run_checks(config: LoadoutConfig) -> list[CheckResult]:
     ]
     results.extend(check_brewfile_fragments(config))
     results.extend(check_globals_scripts(config))
+    results.extend(check_macos_scripts(config))
     results.append(check_claude_config(config))
     return results
 

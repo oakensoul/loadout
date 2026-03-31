@@ -253,6 +253,46 @@ def test_apply_defaults_runs_org_scripts(tmp_path: Path) -> None:
     assert "acme" in run_calls[2][-1]
 
 
+def test_apply_defaults_runs_private_base_and_org(tmp_path: Path) -> None:
+    """Both private base and org scripts run in order: public, private base, org."""
+    _make_macos_dir(tmp_path, ["defaults-base.sh", "defaults-desktop.sh"])
+
+    # Create private base script
+    private_macos = tmp_path / ".dotfiles-private" / "macos" / "base"
+    private_macos.mkdir(parents=True)
+    (private_macos / "set-defaults.sh").write_text("#!/bin/bash\necho private\n")
+
+    # Create org script
+    org_macos = tmp_path / ".dotfiles-private" / "macos" / "orgs" / "acme"
+    org_macos.mkdir(parents=True)
+    (org_macos / "set-defaults.sh").write_text("#!/bin/bash\necho acme\n")
+
+    config = LoadoutConfig(base_dir=tmp_path, orgs=["acme"])
+
+    run_calls: list[list[str]] = []
+
+    def capture_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        run_calls.append(cmd)
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    with (
+        patch("loadout.macos.runner.run", side_effect=capture_run),
+        patch("loadout.macos.detect_machine_type", return_value="desktop"),
+    ):
+        apply_macos_defaults(config)
+
+    assert len(run_calls) == 4
+    # Public defaults first
+    assert "defaults-base.sh" in run_calls[0][-1]
+    assert "defaults-desktop.sh" in run_calls[1][-1]
+    # Private base second
+    assert "set-defaults.sh" in run_calls[2][-1]
+    assert "base" in run_calls[2][-1]
+    # Org last
+    assert "set-defaults.sh" in run_calls[3][-1]
+    assert "acme" in run_calls[3][-1]
+
+
 def test_scripts_invoked_with_euo_pipefail(tmp_path: Path) -> None:
     """All script invocations must use 'bash -euo pipefail'."""
     _make_macos_dir(tmp_path, ["defaults-base.sh", "defaults-desktop.sh"])
