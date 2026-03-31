@@ -48,7 +48,8 @@ loadout upgrade
 ### `loadout init`
 
 Full machine bootstrap — clones dotfile repos, generates SSH keys, registers
-with GitHub, builds dotfiles, runs Homebrew bundle, and installs global packages.
+with GitHub, builds dotfiles, runs Homebrew bundle, installs global packages,
+assembles Claude Code configuration, and applies macOS defaults.
 
 ```bash
 loadout init --user=oakensoul --orgs=personal --orgs=splash
@@ -95,7 +96,9 @@ loadout build --dry-run
 ### `loadout globals`
 
 Install non-Homebrew global packages: Claude Code, NVM + Node LTS,
-pyenv + Python, npm globals, and pip globals from org config.
+pyenv + Python. Runs `globals/globals.base.sh` from the public dotfiles
+repo, then installs per-org env scripts from `globals/orgs/globals.<org>.sh`
+into `~/.zshrc.d/` for shell sourcing.
 
 ```bash
 loadout globals
@@ -145,8 +148,77 @@ Idempotent — safe to re-run.
 | Repo | Purpose |
 |------|---------|
 | `oakensoul/loadout` | This repo — Python package, CLI logic |
-| `oakensoul/dotfiles` | Public base config — Brewfiles, dotfiles, macOS scripts |
-| `oakensoul/dotfiles-private` | Private org config — org-specific overlays |
+| `oakensoul/dotfiles` | Public base config — Brewfiles, dotfiles, macOS scripts, Claude base config |
+| `oakensoul/dotfiles-private` | Private org config — org-specific overlays, Brewfiles, globals, Claude org config |
+
+**Expected directory structure in dotfiles repos:**
+
+```
+~/.dotfiles/                        # oakensoul/dotfiles
+├── brewfiles/
+│   └── Brewfile.base               # base Homebrew packages
+├── dotfiles/base/
+│   ├── .zshrc, .gitconfig, .aliases
+├── globals/
+│   └── globals.base.sh             # base package installs
+├── claude/
+│   ├── base/mcp-shared.json        # shared MCP config
+│   ├── CLAUDE.md.template          # base CLAUDE.md
+│   └── statusline.sh
+└── macos/
+    ├── defaults-base.sh
+    ├── defaults-desktop.sh
+    └── defaults-laptop-*.sh
+
+~/.dotfiles-private/                # oakensoul/dotfiles-private
+├── brewfiles/orgs/
+│   └── Brewfile.<org>              # per-org Homebrew packages
+├── dotfiles/orgs/<org>/
+│   ├── .zshrc, .gitconfig          # per-org dotfile overlays
+├── globals/orgs/
+│   └── globals.<org>.sh            # per-org env vars (sourced, not executed)
+└── claude/
+    ├── orgs/<org>/
+    │   ├── mcp-<org>.json          # per-org MCP config
+    │   └── CLAUDE.md               # per-org CLAUDE.md overlay
+    └── providers/
+        └── *.sh                    # auth provider scripts
+```
+
+### Brewfile Assembly
+
+Loadout assembles Brewfiles from fragments before running `brew bundle`:
+
+| Source | Path | Included |
+|--------|------|----------|
+| Base | `~/.dotfiles/brewfiles/Brewfile.base` | Always |
+| Per-org | `~/.dotfiles-private/brewfiles/orgs/Brewfile.<org>` | For each configured org |
+
+Fragments are concatenated into a single temp file and passed to
+`brew bundle --file=<temp> --no-lock`. Falls back to a single
+`~/.dotfiles/Brewfile` if the `brewfiles/` directory doesn't exist.
+
+### Claude Code Configuration
+
+Loadout assembles Claude Code config from both repos into `~/.claude/`:
+
+| Source | Target | Strategy |
+|--------|--------|----------|
+| `claude/base/mcp-shared.json` + `claude/orgs/<org>/mcp-<org>.json` | `~/.claude/mcp.json` | Deep merge (org wins on conflict) |
+| `claude/CLAUDE.md.template` + `claude/orgs/<org>/CLAUDE.md` | `~/.claude/CLAUDE.md` | Concatenation with separators |
+| `claude/statusline.sh` | `~/.claude/statusline.sh` | Copy |
+| `claude/providers/*.sh` | `~/.claude/providers/` | Copy |
+
+### macOS Defaults
+
+During `init`, loadout detects the machine type and runs the appropriate scripts:
+
+- `macos/defaults-base.sh` — always runs
+- `macos/defaults-desktop.sh` — for Mac Mini, Mac Studio, Mac Pro, iMac
+- `macos/defaults-laptop-connected.sh` — for MacBooks with external display
+- `macos/defaults-laptop-solo.sh` — for MacBooks without external display
+
+All scripts are invoked with `bash -euo pipefail` for fail-fast safety.
 
 ### Config File
 
@@ -157,6 +229,7 @@ user = "oakensoul"
 orgs = ["personal", "splash"]
 github_token_op_path = "op://Personal/GitHub Token/credential"
 nvm_version = "0.40.1"
+pyenv_version = "3"
 ```
 
 | Field | Default | Description |
@@ -165,6 +238,7 @@ nvm_version = "0.40.1"
 | `orgs` | `[]` | Org names whose overlays are applied during build |
 | `github_token_op_path` | `"op://Personal/GitHub Token/credential"` | 1Password path for GitHub token (used during `init`) |
 | `nvm_version` | `"0.40.1"` | NVM version to install via `loadout globals` |
+| `pyenv_version` | `"3"` | Python version for pyenv (e.g., `"3"`, `"3.12"`, `"3.12.1"`) |
 
 This file is written by `loadout init` and read by all other commands.
 

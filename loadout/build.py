@@ -16,6 +16,7 @@ import yaml
 
 from loadout.config import LoadoutConfig
 from loadout.exceptions import LoadoutBuildError
+from loadout.merge import deep_merge
 from loadout.ui import section_header, status_line, verbose_line
 
 # Files that use concatenation merge strategy.
@@ -86,19 +87,6 @@ def _merge_gitconfig(
     dest_path.write_text(content, encoding="utf-8")
 
 
-def _deep_merge(base: object, overlay: object) -> object:
-    """Recursively merge *overlay* into *base*; overlay values win on conflict."""
-    if isinstance(base, dict) and isinstance(overlay, dict):
-        merged = dict(base)
-        for key, value in overlay.items():
-            if key in merged:
-                merged[key] = _deep_merge(merged[key], value)
-            else:
-                merged[key] = value
-        return merged
-    return overlay
-
-
 def _merge_json(base_path: Path, org_path: Path, dest_path: Path) -> None:
     """Deep-merge two JSON files; org values win on conflict."""
     base_data: object = {}
@@ -112,7 +100,7 @@ def _merge_json(base_path: Path, org_path: Path, dest_path: Path) -> None:
         org_data: object = json.loads(org_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise LoadoutBuildError(f"Malformed JSON in {org_path}: {exc}") from exc
-    merged = _deep_merge(base_data, org_data)
+    merged = deep_merge(base_data, org_data)
     dest_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
 
 
@@ -132,7 +120,7 @@ def _merge_yaml(base_path: Path, org_path: Path, dest_path: Path) -> None:
     except yaml.YAMLError as exc:
         raise LoadoutBuildError(f"Malformed YAML in {org_path}: {exc}") from exc
     org_data: object = raw_org if raw_org is not None else {}
-    merged = _deep_merge(base_data, org_data)
+    merged = deep_merge(base_data, org_data)
     dest_path.write_text(yaml.dump(merged, default_flow_style=False), encoding="utf-8")
 
 

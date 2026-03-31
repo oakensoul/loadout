@@ -15,10 +15,12 @@ from rich.console import Console
 from loadout.check import (
     CheckResult,
     CheckStatus,
-    check_brewfile,
+    check_brewfile_fragments,
     check_claude_code,
+    check_claude_config,
     check_git,
     check_github_ssh,
+    check_globals_scripts,
     check_homebrew,
     check_nvm_node,
     check_onepassword,
@@ -192,21 +194,95 @@ class TestCheckClaudeCode:
         assert result.status == CheckStatus.WARN
 
 
-class TestCheckBrewfile:
-    """Tests for check_brewfile."""
+class TestCheckBrewfileFragments:
+    """Tests for check_brewfile_fragments."""
 
-    def test_brewfile_exists(self, tmp_path: Path) -> None:
+    def test_check_brewfile_fragments_base_exists(self, tmp_path: Path) -> None:
         dotfiles = tmp_path / ".dotfiles"
-        dotfiles.mkdir()
+        brewfiles = dotfiles / "brewfiles"
+        brewfiles.mkdir(parents=True)
+        (brewfiles / "Brewfile.base").touch()
+        config = LoadoutConfig(base_dir=tmp_path)
+        results = check_brewfile_fragments(config)
+        assert len(results) == 1
+        assert results[0].status == CheckStatus.OK
+        assert results[0].label == "Brewfile.base"
+
+    def test_check_brewfile_fragments_base_missing(self, tmp_path: Path) -> None:
+        dotfiles = tmp_path / ".dotfiles"
+        brewfiles = dotfiles / "brewfiles"
+        brewfiles.mkdir(parents=True)
+        config = LoadoutConfig(base_dir=tmp_path)
+        results = check_brewfile_fragments(config)
+        assert len(results) == 1
+        assert results[0].status == CheckStatus.ERROR
+        assert results[0].label == "Brewfile.base"
+
+    def test_check_brewfile_fragments_org_missing(self, tmp_path: Path) -> None:
+        dotfiles = tmp_path / ".dotfiles"
+        brewfiles = dotfiles / "brewfiles"
+        brewfiles.mkdir(parents=True)
+        (brewfiles / "Brewfile.base").touch()
+        config = LoadoutConfig(base_dir=tmp_path, orgs=["acme"])
+        results = check_brewfile_fragments(config)
+        assert len(results) == 2
+        assert results[0].status == CheckStatus.OK
+        assert results[1].status == CheckStatus.WARN
+        assert results[1].label == "Brewfile.acme"
+
+    def test_check_brewfile_fallback(self, tmp_path: Path) -> None:
+        dotfiles = tmp_path / ".dotfiles"
+        dotfiles.mkdir(parents=True)
         (dotfiles / "Brewfile").touch()
         config = LoadoutConfig(base_dir=tmp_path)
-        result = check_brewfile(config)
+        results = check_brewfile_fragments(config)
+        assert len(results) == 1
+        assert results[0].status == CheckStatus.OK
+        assert results[0].label == "Brewfile"
+
+
+class TestCheckGlobalsScripts:
+    """Tests for check_globals_scripts."""
+
+    def test_check_globals_scripts(self, tmp_path: Path) -> None:
+        dotfiles = tmp_path / ".dotfiles"
+        globals_dir = dotfiles / "globals"
+        globals_dir.mkdir(parents=True)
+        (globals_dir / "globals.base.sh").touch()
+        config = LoadoutConfig(base_dir=tmp_path, orgs=["acme"])
+        results = check_globals_scripts(config)
+        assert len(results) == 2
+        assert results[0].status == CheckStatus.OK
+        assert results[0].label == "globals.base.sh"
+        assert results[1].status == CheckStatus.WARN
+        assert results[1].label == "globals.acme.sh"
+
+
+class TestCheckClaudeConfig:
+    """Tests for check_claude_config."""
+
+    def test_check_claude_config_valid(self, tmp_path: Path) -> None:
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        (claude_dir / "mcp.json").write_text('{"mcpServers": {}}', encoding="utf-8")
+        config = LoadoutConfig(base_dir=tmp_path)
+        result = check_claude_config(config)
         assert result.status == CheckStatus.OK
 
-    def test_brewfile_missing(self, tmp_path: Path) -> None:
+    def test_check_claude_config_missing(self, tmp_path: Path) -> None:
         config = LoadoutConfig(base_dir=tmp_path)
-        result = check_brewfile(config)
+        result = check_claude_config(config)
         assert result.status == CheckStatus.WARN
+        assert "not found" in result.detail
+
+    def test_check_claude_config_malformed(self, tmp_path: Path) -> None:
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        (claude_dir / "mcp.json").write_text("{invalid json", encoding="utf-8")
+        config = LoadoutConfig(base_dir=tmp_path)
+        result = check_claude_config(config)
+        assert result.status == CheckStatus.WARN
+        assert "malformed" in result.detail
 
 
 class TestRunChecks:
@@ -220,7 +296,8 @@ class TestRunChecks:
             )
             results = run_checks(config)
         assert isinstance(results, list)
-        assert len(results) == 8
+        # 7 tool checks + brewfile fallback(1) + globals base(1) + claude config(1) = 10
+        assert len(results) == 10
         assert all(isinstance(r, CheckResult) for r in results)
 
 

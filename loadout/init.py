@@ -12,9 +12,11 @@ from pathlib import Path
 from loadout import runner, ui
 from loadout.brew import brew_bundle
 from loadout.build import build_dotfiles
+from loadout.claude import build_claude_config
 from loadout.config import LoadoutConfig, save_config
 from loadout.display import generate_launch_agent_plist, is_macos
 from loadout.globals import install_globals
+from loadout.macos import apply_macos_defaults
 
 
 def _clone_repo(
@@ -80,6 +82,8 @@ def _register_ssh_key_with_github(
     runner.run(
         [
             "bash",
+            "-euo",
+            "pipefail",
             "-c",
             f"op read {safe_path} | gh auth login --with-token",
         ],
@@ -126,20 +130,6 @@ def _switch_remotes_to_ssh(
         )
 
 
-def _apply_macos_defaults(
-    config: LoadoutConfig,
-    *,
-    dry_run: bool = False,
-) -> None:
-    """Run defaults-base.sh from the macos directory if it exists."""
-    macos_dir = config.dotfiles_dir / "macos"
-    base_script = macos_dir / "defaults-base.sh"
-    if not base_script.exists():
-        ui.status_line("[yellow]![/yellow]", "macOS defaults", "defaults-base.sh not found")
-        return
-    runner.run(["bash", str(base_script)], dry_run=dry_run)
-
-
 def _setup_launch_agent(
     config: LoadoutConfig,
     *,
@@ -169,7 +159,7 @@ def run_init(
 ) -> None:
     """Execute the full machine bootstrap flow.
 
-    This is the 10-step init sequence that sets up a new machine from scratch.
+    This is the 11-step init sequence that sets up a new machine from scratch.
     Steps are fail-fast: if any step raises, subsequent steps are skipped.
     Platform-conditional steps (macOS defaults, launch agent) are no-ops on
     non-macOS platforms.
@@ -231,7 +221,7 @@ def run_init(
     # 6. Brew bundle
     ui.run_step(
         "Brew bundle",
-        lambda: brew_bundle(dotfiles_dir, dry_run=dry_run),
+        lambda: brew_bundle(config, dry_run=dry_run),
     )
 
     # 7. Install globals
@@ -240,19 +230,25 @@ def run_init(
         lambda: install_globals(config, dry_run=dry_run),
     )
 
-    # 8. Apply macOS defaults
+    # 8. Build Claude config
     ui.run_step(
-        "Apply macOS defaults",
-        lambda: _apply_macos_defaults(config, dry_run=dry_run),
+        "Build Claude config",
+        lambda: build_claude_config(config, dry_run=dry_run),
     )
 
-    # 9. Set up display launch agent
+    # 9. Apply macOS defaults
+    ui.run_step(
+        "Apply macOS defaults",
+        lambda: apply_macos_defaults(config, dry_run=dry_run),
+    )
+
+    # 10. Set up display launch agent
     ui.run_step(
         "Set up display launch agent",
         lambda: _setup_launch_agent(config, dry_run=dry_run),
     )
 
-    # 10. Save config
+    # 11. Save config
     if not dry_run:
         ui.run_step(
             "Save config",

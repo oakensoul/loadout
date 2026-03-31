@@ -10,6 +10,7 @@ command modules and should not contain business logic itself.
 __all__ = [
     "check_health",
     "run_build",
+    "run_claude_config",
     "run_display",
     "run_globals",
     "run_init",
@@ -53,6 +54,18 @@ def run_globals(*, dry_run: bool = False) -> None:
 
     config = load_config()
     install_globals(config, dry_run=dry_run)
+
+
+def run_claude_config(*, dry_run: bool = False) -> None:
+    """Assemble Claude Code configuration from dotfiles repos.
+
+    Delegates to :mod:`loadout.claude`.
+    """
+    from loadout.claude import build_claude_config
+    from loadout.config import load_config
+
+    config = load_config()
+    build_claude_config(config, dry_run=dry_run)
 
 
 def run_display(mode: str | None = None, *, dry_run: bool = False) -> None:
