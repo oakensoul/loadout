@@ -7,21 +7,12 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from cookiecutter.main import cookiecutter as run_cookiecutter
+
 from loadout import runner, ui
 from loadout.exceptions import LoadoutError
 
 _DEFAULT_TEMPLATE = "https://github.com/oakensoul/dotfiles-private-cookiecutter"
-
-
-def _check_cookiecutter() -> None:
-    """Verify that cookiecutter is importable, raising a clear error if not."""
-    try:
-        import cookiecutter  # noqa: F401
-    except ImportError:
-        raise LoadoutError(
-            "cookiecutter is not installed. "
-            'Install it with: pip install "oakensoul-loadout[scaffold]"'
-        ) from None
 
 
 def _build_context(
@@ -71,10 +62,7 @@ def run_scaffold(
 
     ui.section_header("Scaffold dotfiles-private")
 
-    # 1. Check cookiecutter is available
-    ui.run_step("Check cookiecutter dependency", _check_cookiecutter)
-
-    # 2. Check target directory does not exist
+    # 1. Check target directory does not exist
     def _check_target() -> None:
         if target_dir.exists():
             raise LoadoutError(
@@ -87,11 +75,11 @@ def run_scaffold(
 
     ui.run_step("Check target directory", _check_target)
 
-    # 3. Build context
+    # 2. Build context
     context = _build_context(user, orgs, git_name, git_email)
 
-    # 4. Run cookiecutter
-    def _run_cookiecutter() -> None:
+    # 3. Run cookiecutter
+    def _run_cookiecutter_step() -> None:
         if dry_run:
             ui.status_line(
                 "[dim]\u25b6[/dim]",
@@ -100,8 +88,6 @@ def run_scaffold(
             )
             return
 
-        from cookiecutter.main import cookiecutter as run_cookiecutter
-
         run_cookiecutter(
             template,
             no_input=True,
@@ -109,9 +95,9 @@ def run_scaffold(
             output_dir=str(home),
         )
 
-    ui.run_step("Run cookiecutter template", _run_cookiecutter)
+    ui.run_step("Run cookiecutter template", _run_cookiecutter_step)
 
-    # 5. Rename output directory to ~/.dotfiles-private
+    # 4. Rename output directory to ~/.dotfiles-private
     def _rename_output() -> None:
         # cookiecutter typically outputs to {output_dir}/{project_slug}
         # The template should produce a directory named {github_username}-dotfiles-private
@@ -149,7 +135,7 @@ def run_scaffold(
 
     ui.run_step("Rename output directory", _rename_output)
 
-    # 6. Create GitHub repo if requested
+    # 5. Create GitHub repo if requested
     if create_repo:
 
         def _create_repo() -> None:
@@ -176,7 +162,7 @@ def run_scaffold(
 
         ui.run_step("Create GitHub repository", _create_repo)
 
-    # 7. Success message
+    # 6. Success message
     ui.console.print()
     ui.console.print("[green]Scaffold complete![/green]")
     ui.console.print()

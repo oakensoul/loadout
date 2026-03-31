@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from loadout.exceptions import LoadoutError
-from loadout.scaffold import _build_context, _check_cookiecutter, run_scaffold
+from loadout.scaffold import _build_context, run_scaffold
 
 
 def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -19,16 +19,11 @@ def _fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[s
     return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
 
-def _noop_check() -> None:
-    """No-op replacement for _check_cookiecutter in tests."""
-
-
 # ---------------------------------------------------------------------------
 # Successful scaffold
 # ---------------------------------------------------------------------------
 
 
-@patch("loadout.scaffold._check_cookiecutter", _noop_check)
 @patch("loadout.scaffold.shutil.which", return_value="/usr/bin/gh")
 @patch("loadout.scaffold.runner.run", side_effect=_fake_run)
 def test_scaffold_creates_directory(
@@ -49,12 +44,7 @@ def test_scaffold_creates_directory(
         (expected_output / "README.md").write_text("# test", encoding="utf-8")
         return str(expected_output)
 
-    mock_cc = MagicMock()
-    mock_cc_main = MagicMock(cookiecutter=fake_cookiecutter)
-    with patch.dict(
-        "sys.modules",
-        {"cookiecutter": mock_cc, "cookiecutter.main": mock_cc_main},
-    ):
+    with patch("loadout.scaffold.run_cookiecutter", side_effect=fake_cookiecutter):
         run_scaffold(
             "testuser",
             ["orgA", "orgB"],
@@ -74,7 +64,6 @@ def test_scaffold_creates_directory(
 # ---------------------------------------------------------------------------
 
 
-@patch("loadout.scaffold._check_cookiecutter", _noop_check)
 def test_scaffold_aborts_when_target_exists(tmp_path: Path) -> None:
     """Scaffold should raise LoadoutError if ~/.dotfiles-private exists."""
     (tmp_path / ".dotfiles-private").mkdir()
@@ -94,7 +83,6 @@ def test_scaffold_aborts_when_target_exists(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("loadout.scaffold._check_cookiecutter", _noop_check)
 @patch("loadout.scaffold.shutil.which", return_value="/usr/bin/gh")
 @patch("loadout.scaffold.runner.run", side_effect=_fake_run)
 def test_scaffold_create_repo_calls_gh(
@@ -114,12 +102,7 @@ def test_scaffold_create_repo_calls_gh(
         expected_output.mkdir()
         return str(expected_output)
 
-    mock_cc = MagicMock()
-    mock_cc_main = MagicMock(cookiecutter=fake_cookiecutter)
-    with patch.dict(
-        "sys.modules",
-        {"cookiecutter": mock_cc, "cookiecutter.main": mock_cc_main},
-    ):
+    with patch("loadout.scaffold.run_cookiecutter", side_effect=fake_cookiecutter):
         run_scaffold(
             "testuser",
             ["org1"],
@@ -142,7 +125,6 @@ def test_scaffold_create_repo_calls_gh(
 # ---------------------------------------------------------------------------
 
 
-@patch("loadout.scaffold._check_cookiecutter", _noop_check)
 def test_scaffold_dry_run_no_files(tmp_path: Path) -> None:
     """Dry run should not create any files."""
     run_scaffold(
@@ -157,20 +139,6 @@ def test_scaffold_dry_run_no_files(tmp_path: Path) -> None:
 
     target = tmp_path / ".dotfiles-private"
     assert not target.exists()
-
-
-# ---------------------------------------------------------------------------
-# Missing cookiecutter raises clear error
-# ---------------------------------------------------------------------------
-
-
-def test_scaffold_missing_cookiecutter_raises_error() -> None:
-    """Should raise LoadoutError with install instructions."""
-    with (
-        patch.dict("sys.modules", {"cookiecutter": None}),
-        pytest.raises(LoadoutError, match="cookiecutter is not installed"),
-    ):
-        _check_cookiecutter()
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +178,6 @@ def test_scaffold_empty_orgs_context() -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("loadout.scaffold._check_cookiecutter", _noop_check)
 @patch("loadout.scaffold.runner.run", side_effect=_fake_run)
 def test_scaffold_dry_run_with_create_repo(
     mock_run: MagicMock,
