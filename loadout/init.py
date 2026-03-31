@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import shutil
 import socket
@@ -18,6 +19,7 @@ from loadout.config import LoadoutConfig, save_config
 from loadout.display import generate_launch_agent_plist, is_macos
 from loadout.globals import install_globals
 from loadout.macos import apply_macos_defaults
+from loadout.secrets import get_provider, load_ssh_key_config
 
 
 def _ensure_xcode_cli_tools(*, dry_run: bool = False) -> None:
@@ -95,6 +97,84 @@ def _generate_ssh_key(
         ],
         dry_run=dry_run,
     )
+
+
+def _provision_ssh_keys(
+    config: LoadoutConfig,
+    *,
+    dry_run: bool = False,
+) -> list[Path]:
+    """Provision SSH keys from secrets provider or generate new ones.
+
+    When ``dotfiles-private/ssh/keys.toml`` exists, pulls private keys from
+    the configured provider, derives public keys, and adds them to the macOS
+    keychain.  Falls back to generating a single ed25519 key when no config
+    is present.
+
+    Returns a list of public key paths that were provisioned.
+    """
+    provider_type, key_configs = load_ssh_key_config(config.dotfiles_private_dir)
+
+    if not key_configs:
+        # No provider config — fall back to generating a single key
+        ssh_key_path = config.home / ".ssh" / "id_ed25519"
+        _generate_ssh_key(config.user, ssh_key_path, dry_run=dry_run)
+        pub_path = ssh_key_path.with_suffix(".pub")
+        return [pub_path] if pub_path.exists() or dry_run else []
+
+    provider = get_provider(provider_type)
+    ssh_dir = config.home / ".ssh"
+    ssh_dir.mkdir(parents=True, exist_ok=True)
+    pub_keys: list[Path] = []
+
+    for key_config in key_configs:
+        key_path = ssh_dir / key_config.filename
+        pub_path = key_path.with_suffix(".pub") if key_path.suffix else Path(str(key_path) + ".pub")
+
+        if key_path.exists():
+            ui.status_line(
+                "[green]\u2713[/green]", key_config.filename, "already exists \u2014 skipping"
+            )
+            if pub_path.exists():
+                pub_keys.append(pub_path)
+            continue
+
+        if dry_run:
+            ui.status_line(
+                "[dim]\u25b6[/dim]",
+                key_config.filename,
+                f"would provision from {provider_type} (dry run)",
+            )
+            pub_keys.append(pub_path)
+            continue
+
+        # Pull private key from provider
+        ui.status_line(
+            "[blue]\u2193[/blue]", key_config.filename, f"pulling from {provider_type}..."
+        )
+        private_key = provider.read(key_config.secret_path)
+
+        # Write private key with secure permissions (no race condition)
+        fd = os.open(str(key_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, private_key.encode())
+        finally:
+            os.close(fd)
+
+        # Derive public key from private key
+        result = runner.run(["ssh-keygen", "-y", "-f", str(key_path)], capture=True)
+        pub_path.write_text(result.stdout.strip() + "\n", encoding="utf-8")
+
+        # Add to macOS keychain
+        if is_macos():
+            runner.run(["ssh-add", "--apple-use-keychain", str(key_path)], check=False)
+
+        ui.status_line(
+            "[green]\u2713[/green]", key_config.filename, "provisioned and added to keychain"
+        )
+        pub_keys.append(pub_path)
+
+    return pub_keys
 
 
 def _register_ssh_key_with_github(
@@ -238,7 +318,6 @@ def run_init(
     config = LoadoutConfig(user=user, orgs=list(orgs), base_dir=base_dir)
     dotfiles_dir = config.dotfiles_dir
     dotfiles_private_dir = config.dotfiles_private_dir
-    ssh_key_path = config.home / ".ssh" / "id_ed25519"
 
     ui.section_header("Machine Bootstrap")
 
@@ -263,21 +342,22 @@ def run_init(
 
     ui.run_step("Clone dotfiles repos", _clone_repos)
 
-    # 3. Generate SSH key
-    ui.run_step(
-        "Generate SSH key",
-        lambda: _generate_ssh_key(user, ssh_key_path, dry_run=dry_run),
+    # 3. Provision SSH keys (from secrets provider or generate)
+    pub_keys: list[Path] = ui.run_step(
+        "Provision SSH keys",
+        lambda: _provision_ssh_keys(config, dry_run=dry_run),
     )
 
-    # 4. Register SSH key with GitHub
-    ui.run_step(
-        "Register SSH key with GitHub",
-        lambda: _register_ssh_key_with_github(
-            ssh_key_path.with_suffix(".pub"),
-            github_token_op_path=config.github_token_op_path,
-            dry_run=dry_run,
-        ),
-    )
+    # 4. Register SSH keys with GitHub
+    def _register_all_ssh_keys() -> None:
+        for pub_key in pub_keys:
+            _register_ssh_key_with_github(
+                pub_key,
+                github_token_op_path=config.github_token_op_path,
+                dry_run=dry_run,
+            )
+
+    ui.run_step("Register SSH keys with GitHub", _register_all_ssh_keys)
 
     # 5. Switch remotes to SSH
     ui.run_step(

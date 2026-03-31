@@ -32,3 +32,7 @@ class LoadoutCommandError(LoadoutError):
 
 class LoadoutBuildError(LoadoutError):
     """Raised when the dotfile build process fails."""
+
+
+class SecretsProviderError(LoadoutError):
+    """Raised when a secrets provider operation fails."""
