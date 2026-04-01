@@ -77,14 +77,21 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
                     fh.write("\n")
 
             run(["brew", "update"], dry_run=dry_run)
-            run(
+            result = run(
                 [
                     "brew",
                     "bundle",
                     f"--file={tmp_path}",
                 ],
                 dry_run=dry_run,
+                check=False,
             )
+            if not dry_run and result.returncode != 0:
+                status_line(
+                    "[yellow]![/yellow]",
+                    "Brew bundle",
+                    "completed with warnings (some packages may have failed)",
+                )
         finally:
             if tmp_path is not None and tmp_path.exists():
                 tmp_path.unlink()
@@ -95,14 +102,21 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     if brewfile.exists():
         verbose_line(f"Using legacy Brewfile: {brewfile}")
         run(["brew", "update"], dry_run=dry_run)
-        run(
+        result = run(
             [
                 "brew",
                 "bundle",
                 f"--file={brewfile}",
             ],
             dry_run=dry_run,
+            check=False,
         )
+        if not dry_run and result.returncode != 0:
+            status_line(
+                "[yellow]![/yellow]",
+                "Brew bundle",
+                "completed with warnings (some packages may have failed)",
+            )
         return
 
     status_line("[yellow]![/yellow]", "Brewfile", "not found — skipping")
