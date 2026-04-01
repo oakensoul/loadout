@@ -52,6 +52,8 @@ class SshKeyConfig:
     org: str
     filename: str
     secret_path: str
+    host: str = ""
+    host_name: str = ""
 
 
 def load_ssh_key_config(dotfiles_private_dir: Path) -> tuple[str, list[SshKeyConfig]]:
@@ -76,6 +78,8 @@ def load_ssh_key_config(dotfiles_private_dir: Path) -> tuple[str, list[SshKeyCon
                     org=org,
                     filename=key_data["filename"],
                     secret_path=key_data["secret_path"],
+                    host=key_data.get("host", ""),
+                    host_name=key_data.get("host_name", ""),
                 )
             )
         except KeyError as exc:
