@@ -17,6 +17,9 @@ ENV/
 # IDE
 .idea/
 .vscode/
+.cursor/
+.claude/settings.local.json
+.claude/worktrees/
 *.swp
 *.swo
 *~
