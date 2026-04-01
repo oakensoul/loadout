@@ -79,6 +79,7 @@ def test_ensure_devbox_installs(mock_which: MagicMock, mock_run: MagicMock) -> N
     mock_run.assert_called_once_with(
         ["pip3", "install", "oakensoul-devbox"],
         dry_run=False,
+        check=False,
     )
 
 
@@ -90,6 +91,7 @@ def test_ensure_devbox_dry_run(mock_which: MagicMock, mock_run: MagicMock) -> No
     mock_run.assert_called_once_with(
         ["pip3", "install", "oakensoul-devbox"],
         dry_run=True,
+        check=False,
     )
 
 
@@ -114,6 +116,7 @@ def test_ensure_canvas_installs(mock_which: MagicMock, mock_run: MagicMock) -> N
     mock_run.assert_called_once_with(
         ["pip3", "install", "oakensoul-canvas"],
         dry_run=False,
+        check=False,
     )
 
 
@@ -125,6 +128,7 @@ def test_ensure_canvas_dry_run(mock_which: MagicMock, mock_run: MagicMock) -> No
     mock_run.assert_called_once_with(
         ["pip3", "install", "oakensoul-canvas"],
         dry_run=True,
+        check=False,
     )
 
 
@@ -216,7 +220,9 @@ def test_install_npm_globals_installs_missing(mock_run: MagicMock) -> None:
     mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="")
     install_npm_globals(["typescript"])
     assert mock_run.call_count == 2
-    mock_run.assert_any_call(["npm", "install", "-g", "typescript"], dry_run=False)
+    mock_run.assert_any_call(
+        ["npm", "install", "-g", "typescript"], dry_run=False, interactive=True
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +246,7 @@ def test_install_pip_globals_installs_missing(mock_run: MagicMock) -> None:
     mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="")
     install_pip_globals(["black"])
     assert mock_run.call_count == 2
-    mock_run.assert_any_call(["pip", "install", "--user", "black"], dry_run=False)
+    mock_run.assert_any_call(["pip", "install", "--user", "black"], dry_run=False, interactive=True)
 
 
 # ---------------------------------------------------------------------------
@@ -256,7 +262,9 @@ def test_run_globals_script(mock_run: MagicMock, tmp_path: Path) -> None:
 
     _run_globals_script(script)
 
-    mock_run.assert_called_once_with(["bash", "-euo", "pipefail", str(script)], dry_run=False)
+    mock_run.assert_called_once_with(
+        ["bash", "-euo", "pipefail", str(script)], dry_run=False, interactive=True
+    )
 
 
 @patch("loadout.globals.run")

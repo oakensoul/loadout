@@ -28,6 +28,7 @@ def run(
     *,
     check: bool = True,
     capture: bool = False,
+    interactive: bool = False,
     dry_run: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run a shell command, optionally in dry-run mode.
@@ -36,6 +37,9 @@ def run(
         cmd: Command to execute as a list of arguments.
         check: If True, raise LoadoutCommandError on non-zero exit.
         capture: If True, capture stdout and stderr.
+        interactive: If True, inherit the terminal for stdin/stdout/stderr
+            so the subprocess can prompt the user (e.g. sudo password,
+            1Password approval). Mutually exclusive with capture.
         dry_run: If True, log the command but do not execute it.
 
     Returns:
@@ -69,14 +73,23 @@ def run(
             env = {**os.environ, "PATH": brew_bin + os.pathsep + current_path}
 
     try:
-        result = subprocess.run(  # noqa: S603 — cmd is list-form, no shell=True
-            cmd,
-            check=check,
-            stdout=subprocess.PIPE if capture else None,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env,
-        )
+        if interactive:
+            # Let the subprocess inherit the terminal so prompts are visible
+            result = subprocess.run(  # noqa: S603 — cmd is list-form, no shell=True
+                cmd,
+                check=check,
+                text=True,
+                env=env,
+            )
+        else:
+            result = subprocess.run(  # noqa: S603 — cmd is list-form, no shell=True
+                cmd,
+                check=check,
+                stdout=subprocess.PIPE if capture else None,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+            )
     except FileNotFoundError as exc:
         raise LoadoutCommandError(
             f"Command not found: {cmd[0]}",

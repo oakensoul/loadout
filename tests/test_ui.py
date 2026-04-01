@@ -114,3 +114,55 @@ class TestRunStep:
         output = buf.getvalue()
         assert "✗" in output
         assert "risky step" in output
+
+
+class TestRunStepInteractive:
+    def test_interactive_returns_value(
+        self, monkeypatch: pytest.MonkeyPatch, captured_console: tuple[Console, StringIO]
+    ) -> None:
+        test_console, _buf = captured_console
+        monkeypatch.setattr(ui, "console", test_console)
+
+        result = ui.run_step("adding numbers", lambda: 42, interactive=True)
+
+        assert result == 42
+
+    def test_interactive_shows_checkmark(
+        self, monkeypatch: pytest.MonkeyPatch, captured_console: tuple[Console, StringIO]
+    ) -> None:
+        test_console, buf = captured_console
+        monkeypatch.setattr(ui, "console", test_console)
+
+        ui.run_step("doing work", lambda: None, interactive=True)
+
+        output = buf.getvalue()
+        assert "✓" in output
+        assert "doing work" in output
+
+    def test_interactive_shows_start_indicator(
+        self, monkeypatch: pytest.MonkeyPatch, captured_console: tuple[Console, StringIO]
+    ) -> None:
+        test_console, buf = captured_console
+        monkeypatch.setattr(ui, "console", test_console)
+
+        ui.run_step("brew bundle", lambda: None, interactive=True)
+
+        output = buf.getvalue()
+        assert "▶" in output
+        assert "brew bundle" in output
+
+    def test_interactive_failure_shows_x(
+        self, monkeypatch: pytest.MonkeyPatch, captured_console: tuple[Console, StringIO]
+    ) -> None:
+        test_console, buf = captured_console
+        monkeypatch.setattr(ui, "console", test_console)
+
+        def failing() -> None:
+            msg = "boom"
+            raise RuntimeError(msg)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            ui.run_step("risky step", failing, interactive=True)
+
+        output = buf.getvalue()
+        assert "✗" in output

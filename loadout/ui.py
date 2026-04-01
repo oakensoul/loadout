@@ -52,12 +52,28 @@ def error_panel(title: str, body: str) -> None:
     err_console.print(Panel(body, title=title, border_style="red"))
 
 
-def run_step(description: str, fn: Callable[[], T]) -> T:
+def run_step(description: str, fn: Callable[[], T], *, interactive: bool = False) -> T:
     """Run *fn* with a Rich spinner, show result icon, and return the value.
+
+    Args:
+        description: Human-readable label for this step.
+        fn: Zero-argument callable to execute.
+        interactive: If True, skip the spinner so subprocess prompts
+            (sudo password, 1Password approval) are visible to the user.
 
     Displays a checkmark on success or an X on failure.
     Re-raises exceptions after displaying the error.
     """
+    if interactive:
+        console.print(f"[dim]▶[/dim]  {description}…")
+        try:
+            result = fn()
+            console.print(f"[green]✓[/green]  {description}")
+            return result
+        except Exception:
+            console.print(f"[red]✗[/red]  {description}")
+            raise
+
     try:
         with console.status(f"  {description}…"):
             result = fn()

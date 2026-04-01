@@ -47,13 +47,21 @@ def _run_private_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False)
     private_base_script = config.dotfiles_private_dir / "macos" / "base" / "set-defaults.sh"
     if private_base_script.exists():
         ui.status_line("[dim]\u25b6[/dim]", "Running", "private base set-defaults.sh")
-        runner.run(["bash", "-euo", "pipefail", str(private_base_script)], dry_run=dry_run)
+        runner.run(
+            ["bash", "-euo", "pipefail", str(private_base_script)],
+            dry_run=dry_run,
+            interactive=True,
+        )
 
     for org in config.orgs:
         org_script = config.dotfiles_private_dir / "macos" / "orgs" / org / "set-defaults.sh"
         if org_script.exists():
             ui.status_line("[dim]\u25b6[/dim]", "Running", f"org {org} set-defaults.sh")
-            runner.run(["bash", "-euo", "pipefail", str(org_script)], dry_run=dry_run)
+            runner.run(
+                ["bash", "-euo", "pipefail", str(org_script)],
+                dry_run=dry_run,
+                interactive=True,
+            )
 
 
 def apply_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False) -> None:
@@ -79,7 +87,11 @@ def apply_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False) -> Non
     base_script = macos_dir / "defaults-base.sh"
     if base_script.exists():
         ui.status_line("[dim]\u25b6[/dim]", "Running", "defaults-base.sh")
-        runner.run(["bash", "-euo", "pipefail", str(base_script)], dry_run=dry_run)
+        runner.run(
+            ["bash", "-euo", "pipefail", str(base_script)],
+            dry_run=dry_run,
+            interactive=True,
+        )
     else:
         ui.status_line("[yellow]![/yellow]", "macOS defaults", "defaults-base.sh not found")
 
@@ -91,7 +103,11 @@ def apply_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False) -> Non
         desktop_script = macos_dir / "defaults-desktop.sh"
         if desktop_script.exists():
             ui.status_line("[dim]\u25b6[/dim]", "Running", "defaults-desktop.sh")
-            runner.run(["bash", "-euo", "pipefail", str(desktop_script)], dry_run=dry_run)
+            runner.run(
+                ["bash", "-euo", "pipefail", str(desktop_script)],
+                dry_run=dry_run,
+                interactive=True,
+            )
         else:
             ui.status_line(
                 "[yellow]![/yellow]", "macOS defaults", "defaults-desktop.sh not found — skipping"
@@ -102,7 +118,11 @@ def apply_macos_defaults(config: LoadoutConfig, *, dry_run: bool = False) -> Non
         laptop_script = macos_dir / script_name
         if laptop_script.exists():
             ui.status_line("[dim]\u25b6[/dim]", "Running", script_name)
-            runner.run(["bash", "-euo", "pipefail", str(laptop_script)], dry_run=dry_run)
+            runner.run(
+                ["bash", "-euo", "pipefail", str(laptop_script)],
+                dry_run=dry_run,
+                interactive=True,
+            )
         else:
             ui.status_line(
                 "[yellow]![/yellow]", "macOS defaults", f"{script_name} not found — skipping"
