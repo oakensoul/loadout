@@ -19,6 +19,7 @@ from loadout.display import generate_launch_agent_plist, is_macos
 from loadout.globals import install_globals
 from loadout.macos import apply_macos_defaults
 from loadout.secrets import get_provider, load_ssh_key_config
+from loadout.ssh import install_ssh_config
 
 
 def _ensure_xcode_cli_tools(*, dry_run: bool = False) -> None:
@@ -358,6 +359,13 @@ def run_init(
         "Provision SSH keys",
         lambda: _provision_ssh_keys(config, dry_run=dry_run),
         interactive=True,
+    )
+
+    # 3b. Generate SSH config from keys.toml
+    _, key_configs = load_ssh_key_config(dotfiles_private_dir)
+    ui.run_step(
+        "Generate SSH config",
+        lambda: install_ssh_config(key_configs, config.home, dry_run=dry_run),
     )
 
     # 4. Register SSH keys with GitHub

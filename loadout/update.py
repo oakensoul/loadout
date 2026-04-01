@@ -12,6 +12,8 @@ from loadout.claude import build_claude_config
 from loadout.config import LoadoutConfig
 from loadout.globals import install_globals
 from loadout.runner import run
+from loadout.secrets import load_ssh_key_config
+from loadout.ssh import install_ssh_config
 from loadout.ui import run_step, section_header, status_line
 
 
@@ -63,6 +65,13 @@ def run_update(config: LoadoutConfig, *, dry_run: bool = False) -> None:
 
     # Build Claude config
     run_step("Build Claude config", lambda: build_claude_config(config, dry_run=dry_run))
+
+    # Rebuild SSH config
+    _, key_configs = load_ssh_key_config(config.dotfiles_private_dir)
+    run_step(
+        "Build SSH config",
+        lambda: install_ssh_config(key_configs, config.home, dry_run=dry_run),
+    )
 
     # Brew update + bundle
     run_step(
