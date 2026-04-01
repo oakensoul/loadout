@@ -34,15 +34,12 @@ def ensure_devbox(*, dry_run: bool = False) -> None:
     if shutil.which("devbox") is not None:
         status_line("[green]✓[/green]", "devbox CLI", "already installed")
         return
-    # Not on PyPI — try local install, warn if unavailable
-    result = run(["pip3", "install", "oakensoul-devbox"], dry_run=dry_run, check=False)
-    if not dry_run and result.returncode != 0:
-        status_line(
-            "[yellow]![/yellow]",
-            "devbox CLI",
-            "not available via pip — install from source:"
-            " pip3 install ~/Developer/oakensoul/devbox",
-        )
+    run(
+        ["pip3", "install", "git+https://github.com/oakensoul/devbox.git"],
+        dry_run=dry_run,
+        check=False,
+        interactive=True,
+    )
 
 
 def ensure_canvas(*, dry_run: bool = False) -> None:
@@ -50,15 +47,12 @@ def ensure_canvas(*, dry_run: bool = False) -> None:
     if shutil.which("canvas") is not None:
         status_line("[green]✓[/green]", "canvas CLI", "already installed")
         return
-    # Not on PyPI — try local install, warn if unavailable
-    result = run(["pip3", "install", "oakensoul-canvas"], dry_run=dry_run, check=False)
-    if not dry_run and result.returncode != 0:
-        status_line(
-            "[yellow]![/yellow]",
-            "canvas CLI",
-            "not available via pip — install from source:"
-            " pip3 install ~/Developer/oakensoul/canvas",
-        )
+    run(
+        ["pip3", "install", "git+https://github.com/oakensoul/canvas.git"],
+        dry_run=dry_run,
+        check=False,
+        interactive=True,
+    )
 
 
 def ensure_nvm_node(config: LoadoutConfig, *, dry_run: bool = False) -> None:

@@ -77,9 +77,10 @@ def test_ensure_devbox_installs(mock_which: MagicMock, mock_run: MagicMock) -> N
     """Should install via pip3 when devbox is not on PATH."""
     ensure_devbox()
     mock_run.assert_called_once_with(
-        ["pip3", "install", "oakensoul-devbox"],
+        ["pip3", "install", "git+https://github.com/oakensoul/devbox.git"],
         dry_run=False,
         check=False,
+        interactive=True,
     )
 
 
@@ -89,9 +90,10 @@ def test_ensure_devbox_dry_run(mock_which: MagicMock, mock_run: MagicMock) -> No
     """Dry-run should pass dry_run=True to runner."""
     ensure_devbox(dry_run=True)
     mock_run.assert_called_once_with(
-        ["pip3", "install", "oakensoul-devbox"],
+        ["pip3", "install", "git+https://github.com/oakensoul/devbox.git"],
         dry_run=True,
         check=False,
+        interactive=True,
     )
 
 
@@ -114,9 +116,10 @@ def test_ensure_canvas_installs(mock_which: MagicMock, mock_run: MagicMock) -> N
     """Should install via pip3 when canvas is not on PATH."""
     ensure_canvas()
     mock_run.assert_called_once_with(
-        ["pip3", "install", "oakensoul-canvas"],
+        ["pip3", "install", "git+https://github.com/oakensoul/canvas.git"],
         dry_run=False,
         check=False,
+        interactive=True,
     )
 
 
@@ -126,9 +129,10 @@ def test_ensure_canvas_dry_run(mock_which: MagicMock, mock_run: MagicMock) -> No
     """Dry-run should pass dry_run=True to runner."""
     ensure_canvas(dry_run=True)
     mock_run.assert_called_once_with(
-        ["pip3", "install", "oakensoul-canvas"],
+        ["pip3", "install", "git+https://github.com/oakensoul/canvas.git"],
         dry_run=True,
         check=False,
+        interactive=True,
     )
 
 
