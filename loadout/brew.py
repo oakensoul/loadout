@@ -76,7 +76,7 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
                     fh.write(frag.read_text(encoding="utf-8"))
                     fh.write("\n")
 
-            run(["brew", "update"], dry_run=dry_run)
+            run(["brew", "update"], dry_run=dry_run, interactive=True)
             result = run(
                 [
                     "brew",
@@ -85,6 +85,7 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
                 ],
                 dry_run=dry_run,
                 check=False,
+                interactive=True,
             )
             if not dry_run and result.returncode != 0:
                 status_line(
@@ -101,7 +102,7 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     brewfile = config.dotfiles_dir / "Brewfile"
     if brewfile.exists():
         verbose_line(f"Using legacy Brewfile: {brewfile}")
-        run(["brew", "update"], dry_run=dry_run)
+        run(["brew", "update"], dry_run=dry_run, interactive=True)
         result = run(
             [
                 "brew",
@@ -110,6 +111,7 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
             ],
             dry_run=dry_run,
             check=False,
+            interactive=True,
         )
         if not dry_run and result.returncode != 0:
             status_line(

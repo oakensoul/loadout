@@ -68,10 +68,15 @@ def run_update(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     run_step(
         "Brew bundle",
         lambda: brew_bundle(config, dry_run=dry_run),
+        interactive=True,
     )
 
     # Install globals
-    run_step("Install globals", lambda: install_globals(config, dry_run=dry_run))
+    run_step(
+        "Install globals",
+        lambda: install_globals(config, dry_run=dry_run),
+        interactive=True,
+    )
 
 
 def run_upgrade(config: LoadoutConfig, *, dry_run: bool = False) -> None:
@@ -86,7 +91,8 @@ def run_upgrade(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     if shutil.which("brew") is not None:
         run_step(
             "Brew upgrade",
-            lambda: run(["brew", "upgrade"], dry_run=dry_run),
+            lambda: run(["brew", "upgrade"], dry_run=dry_run, interactive=True),
+            interactive=True,
         )
     else:
         status_line("[yellow]![/yellow]", "brew", "not found — skipping brew upgrade")

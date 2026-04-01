@@ -35,14 +35,13 @@ def ensure_devbox(*, dry_run: bool = False) -> None:
         status_line("[green]✓[/green]", "devbox CLI", "already installed")
         return
     # Not on PyPI — try local install, warn if unavailable
-    result = run(
-        ["pip3", "install", "oakensoul-devbox"], dry_run=dry_run, check=False
-    )
+    result = run(["pip3", "install", "oakensoul-devbox"], dry_run=dry_run, check=False)
     if not dry_run and result.returncode != 0:
         status_line(
             "[yellow]![/yellow]",
             "devbox CLI",
-            "not available via pip — install from source: pip3 install ~/Developer/oakensoul/devbox",
+            "not available via pip — install from source:"
+            " pip3 install ~/Developer/oakensoul/devbox",
         )
 
 
@@ -52,14 +51,13 @@ def ensure_canvas(*, dry_run: bool = False) -> None:
         status_line("[green]✓[/green]", "canvas CLI", "already installed")
         return
     # Not on PyPI — try local install, warn if unavailable
-    result = run(
-        ["pip3", "install", "oakensoul-canvas"], dry_run=dry_run, check=False
-    )
+    result = run(["pip3", "install", "oakensoul-canvas"], dry_run=dry_run, check=False)
     if not dry_run and result.returncode != 0:
         status_line(
             "[yellow]![/yellow]",
             "canvas CLI",
-            "not available via pip — install from source: pip3 install ~/Developer/oakensoul/canvas",
+            "not available via pip — install from source:"
+            " pip3 install ~/Developer/oakensoul/canvas",
         )
 
 
@@ -125,7 +123,7 @@ def install_npm_globals(packages: list[str], *, dry_run: bool = False) -> None:
         if result.returncode == 0 and package in result.stdout:
             status_line("[green]✓[/green]", f"npm: {package}", "already installed")
             continue
-        run(["npm", "install", "-g", package], dry_run=dry_run)
+        run(["npm", "install", "-g", package], dry_run=dry_run, interactive=True)
 
 
 def install_pip_globals(packages: list[str], *, dry_run: bool = False) -> None:
@@ -139,7 +137,7 @@ def install_pip_globals(packages: list[str], *, dry_run: bool = False) -> None:
         if result.returncode == 0:
             status_line("[green]✓[/green]", f"pip: {package}", "already installed")
             continue
-        run(["pip", "install", "--user", package], dry_run=dry_run)
+        run(["pip", "install", "--user", package], dry_run=dry_run, interactive=True)
 
 
 def _run_globals_script(script: Path, *, dry_run: bool = False) -> None:
@@ -147,7 +145,7 @@ def _run_globals_script(script: Path, *, dry_run: bool = False) -> None:
     if not script.exists():
         verbose_line(f"Globals script not found: {script}")
         return
-    run(["bash", "-euo", "pipefail", str(script)], dry_run=dry_run)
+    run(["bash", "-euo", "pipefail", str(script)], dry_run=dry_run, interactive=True)
 
 
 def _install_org_globals_scripts(config: LoadoutConfig, *, dry_run: bool = False) -> None:
@@ -182,17 +180,27 @@ def install_globals(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     run_step(
         "Ensure NVM + Node",
         lambda: ensure_nvm_node(config, dry_run=dry_run),
+        interactive=True,
     )
-    run_step("Ensure Claude Code CLI", lambda: ensure_claude_code(dry_run=dry_run))
+    run_step(
+        "Ensure Claude Code CLI",
+        lambda: ensure_claude_code(dry_run=dry_run),
+        interactive=True,
+    )
     run_step("Ensure devbox CLI", lambda: ensure_devbox(dry_run=dry_run))
     run_step("Ensure canvas CLI", lambda: ensure_canvas(dry_run=dry_run))
-    run_step("Ensure pyenv Python", lambda: ensure_pyenv_python(config, dry_run=dry_run))
+    run_step(
+        "Ensure pyenv Python",
+        lambda: ensure_pyenv_python(config, dry_run=dry_run),
+        interactive=True,
+    )
 
     run_step(
         "Run base globals script",
         lambda: _run_globals_script(
             config.dotfiles_dir / "globals" / "globals.base.sh", dry_run=dry_run
         ),
+        interactive=True,
     )
     run_step(
         "Run private base globals script",
@@ -200,6 +208,7 @@ def install_globals(config: LoadoutConfig, *, dry_run: bool = False) -> None:
             config.dotfiles_private_dir / "globals" / "base" / "globals.sh",
             dry_run=dry_run,
         ),
+        interactive=True,
     )
     run_step(
         "Install org globals scripts",

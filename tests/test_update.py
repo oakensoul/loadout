@@ -49,8 +49,13 @@ def test_run_update_full_flow(
     # Build
     mock_build.assert_called_once_with(config, dry_run=False)
     # Brew update + bundle (via brew.py)
-    mock_brew_run.assert_any_call(["brew", "update"], dry_run=False)
-    mock_brew_run.assert_any_call(["brew", "bundle", f"--file={brewfile}"], dry_run=False)
+    mock_brew_run.assert_any_call(["brew", "update"], dry_run=False, interactive=True)
+    mock_brew_run.assert_any_call(
+        ["brew", "bundle", f"--file={brewfile}"],
+        dry_run=False,
+        check=False,
+        interactive=True,
+    )
     # Globals
     mock_globals.assert_called_once_with(config, dry_run=False)
 
@@ -214,7 +219,7 @@ def test_run_upgrade_calls_update_then_upgrade(
     # install_globals should have been called (from update)
     mock_globals.assert_called_once()
     # brew upgrade should be in the runner calls
-    mock_update_run.assert_any_call(["brew", "upgrade"], dry_run=False)
+    mock_update_run.assert_any_call(["brew", "upgrade"], dry_run=False, interactive=True)
 
 
 @patch("loadout.update.build_claude_config")

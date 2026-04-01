@@ -99,7 +99,7 @@ class TestRunNormal:
     @patch("loadout.runner.os.path.isfile", return_value=False)
     @patch("loadout.runner.subprocess.run")
     def test_run_always_captures_stderr(self, mock_run: MagicMock, _mock_exists: MagicMock) -> None:
-        """stderr=PIPE is passed even when capture=False."""
+        """stderr=PIPE is passed even when capture=False (non-interactive)."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["echo", "hi"],
             returncode=0,
@@ -117,6 +117,41 @@ class TestRunNormal:
             text=True,
             env=None,
         )
+
+
+class TestRunInteractive:
+    """Test interactive mode — subprocess inherits the terminal."""
+
+    @patch("loadout.runner.os.path.isfile", return_value=False)
+    @patch("loadout.runner.subprocess.run")
+    def test_interactive_inherits_terminal(
+        self, mock_run: MagicMock, _mock_exists: MagicMock
+    ) -> None:
+        """interactive=True does not pipe stdout or stderr."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["brew", "bundle"], returncode=0, stdout=None, stderr=None
+        )
+
+        run(["brew", "bundle"], interactive=True)
+
+        mock_run.assert_called_once_with(
+            ["brew", "bundle"],
+            check=True,
+            text=True,
+            env=None,
+        )
+
+    @patch("loadout.runner.os.path.isfile", return_value=False)
+    @patch("loadout.runner.subprocess.run")
+    def test_interactive_check_false(self, mock_run: MagicMock, _mock_exists: MagicMock) -> None:
+        """interactive=True respects check=False."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["sudo", "cmd"], returncode=1, stdout=None, stderr=None
+        )
+
+        result = run(["sudo", "cmd"], interactive=True, check=False)
+
+        assert result.returncode == 1
 
 
 class TestRunDryRun:

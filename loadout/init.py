@@ -204,6 +204,7 @@ def _ensure_gh_authenticated(*, dry_run: bool = False) -> bool:
     result = runner.run(
         ["gh", "auth", "login", "--web", "-p", "ssh"],
         check=False,
+        interactive=True,
     )
     return result.returncode == 0
 
@@ -334,6 +335,7 @@ def run_init(
     ui.run_step(
         "Ensure Xcode CLI Tools",
         lambda: _ensure_xcode_cli_tools(dry_run=dry_run),
+        interactive=True,
     )
 
     # 2. Clone dotfiles repos
@@ -355,6 +357,7 @@ def run_init(
     pub_keys: list[Path] = ui.run_step(
         "Provision SSH keys",
         lambda: _provision_ssh_keys(config, dry_run=dry_run),
+        interactive=True,
     )
 
     # 4. Register SSH keys with GitHub
@@ -364,7 +367,7 @@ def run_init(
         for pub_key in pub_keys:
             _register_ssh_key_with_github(pub_key, dry_run=dry_run)
 
-    ui.run_step("Register SSH keys with GitHub", _register_all_ssh_keys)
+    ui.run_step("Register SSH keys with GitHub", _register_all_ssh_keys, interactive=True)
 
     # 5. Switch remotes to SSH
     ui.run_step(
@@ -386,12 +389,14 @@ def run_init(
     ui.run_step(
         "Brew bundle",
         lambda: brew_bundle(config, dry_run=dry_run),
+        interactive=True,
     )
 
     # 8. Install globals
     ui.run_step(
         "Install globals",
         lambda: install_globals(config, dry_run=dry_run),
+        interactive=True,
     )
 
     # 9. Build Claude config
@@ -410,6 +415,7 @@ def run_init(
     ui.run_step(
         "Apply macOS defaults",
         lambda: apply_macos_defaults(config, dry_run=dry_run),
+        interactive=True,
     )
 
     # 12. Set up display launch agent
