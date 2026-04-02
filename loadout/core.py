@@ -108,9 +108,7 @@ def run_scaffold(
     )
 
 
-def run_init(
-    user: str, orgs: list[str], *, dry_run: bool = False, headless: bool = False
-) -> None:
+def run_init(user: str, orgs: list[str], *, dry_run: bool = False, headless: bool = False) -> None:
     """Full machine bootstrap flow.
 
     Delegates to :mod:`loadout.init`.

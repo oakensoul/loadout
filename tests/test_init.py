@@ -714,9 +714,7 @@ def test_collect_existing_pub_keys_no_keys(mock_ssh_config: MagicMock, tmp_path:
 
 
 @patch("loadout.init.load_ssh_key_config")
-def test_collect_existing_pub_keys_from_config(
-    mock_ssh_config: MagicMock, tmp_path: Path
-) -> None:
+def test_collect_existing_pub_keys_from_config(mock_ssh_config: MagicMock, tmp_path: Path) -> None:
     """Should find pub keys matching key config entries."""
     from loadout.secrets import SshKeyConfig
 
