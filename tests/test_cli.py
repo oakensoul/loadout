@@ -118,7 +118,15 @@ class TestCLIDelegation:
     def test_init_invokes_core(self, mock_init: MagicMock) -> None:
         result = CliRunner().invoke(cli, ["init", "--user", "testuser", "--orgs", "org1"])
         assert result.exit_code == 0
-        mock_init.assert_called_once_with("testuser", ["org1"], dry_run=False)
+        mock_init.assert_called_once_with("testuser", ["org1"], dry_run=False, headless=False)
+
+    @patch("loadout.core.run_init")
+    def test_init_headless_invokes_core(self, mock_init: MagicMock) -> None:
+        result = CliRunner().invoke(
+            cli, ["init", "--user", "testuser", "--orgs", "org1", "--headless"]
+        )
+        assert result.exit_code == 0
+        mock_init.assert_called_once_with("testuser", ["org1"], dry_run=False, headless=True)
 
     @patch("loadout.core.run_update")
     def test_update_invokes_core(self, mock_update: MagicMock) -> None:

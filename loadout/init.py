@@ -99,6 +99,41 @@ def _generate_ssh_key(
     )
 
 
+def _pub_key_path(private_key_path: Path) -> Path:
+    """Derive the public key path from a private key path.
+
+    Handles both extensionless filenames (``id_acme`` → ``id_acme.pub``)
+    and filenames with an extension (``id_acme.pem`` → ``id_acme.pem.pub``).
+    """
+    return Path(str(private_key_path) + ".pub")
+
+
+def _collect_existing_pub_keys(config: LoadoutConfig) -> list[Path]:
+    """Return public key paths that already exist on disk.
+
+    Used in headless mode where key provisioning is skipped but downstream
+    steps (SSH config generation, remote switching) still benefit from
+    knowing which keys are available.
+    """
+    _, key_configs = load_ssh_key_config(config.dotfiles_private_dir)
+    ssh_dir = config.home / ".ssh"
+    pub_keys: list[Path] = []
+
+    if not key_configs:
+        pub = ssh_dir / "id_ed25519.pub"
+        if pub.exists():
+            pub_keys.append(pub)
+        return pub_keys
+
+    for key_config in key_configs:
+        key_path = ssh_dir / key_config.filename
+        pub_path = _pub_key_path(key_path)
+        if pub_path.exists():
+            pub_keys.append(pub_path)
+
+    return pub_keys
+
+
 def _provision_ssh_keys(
     config: LoadoutConfig,
     *,
@@ -119,7 +154,7 @@ def _provision_ssh_keys(
         # No provider config — fall back to generating a single key
         ssh_key_path = config.home / ".ssh" / "id_ed25519"
         _generate_ssh_key(config.user, ssh_key_path, dry_run=dry_run)
-        pub_path = ssh_key_path.with_suffix(".pub")
+        pub_path = _pub_key_path(ssh_key_path)
         return [pub_path] if pub_path.exists() or dry_run else []
 
     provider = get_provider(provider_type)
@@ -129,7 +164,7 @@ def _provision_ssh_keys(
 
     for key_config in key_configs:
         key_path = ssh_dir / key_config.filename
-        pub_path = key_path.with_suffix(".pub") if key_path.suffix else Path(str(key_path) + ".pub")
+        pub_path = _pub_key_path(key_path)
 
         if key_path.exists():
             ui.status_line(
@@ -312,12 +347,18 @@ def _bootstrap_canvas_config(
     ui.status_line("[green]✓[/green]", "Canvas config", f"created with org={config.orgs[0]}")
 
 
+def _skip_step(name: str) -> None:
+    """Log that a step was skipped due to headless mode."""
+    ui.status_line("[dim]\u23ed[/dim]", name, "skipped (headless)")
+
+
 def run_init(
     user: str,
     orgs: list[str],
     *,
     base_dir: Path | None = None,
     dry_run: bool = False,
+    headless: bool = False,
 ) -> None:
     """Execute the full machine bootstrap flow.
 
@@ -325,19 +366,29 @@ def run_init(
     Steps are fail-fast: if any step raises, subsequent steps are skipped.
     Platform-conditional steps (macOS defaults, launch agent) are no-ops on
     non-macOS platforms.
+
+    When *headless* is True, steps requiring interactive input (browser auth,
+    1Password biometric, Homebrew, macOS defaults) are skipped.  This is
+    intended for non-interactive environments such as devbox SSH accounts
+    where keys are pre-copied and packages are managed externally.
     """
     config = LoadoutConfig(user=user, orgs=list(orgs), base_dir=base_dir)
     dotfiles_dir = config.dotfiles_dir
     dotfiles_private_dir = config.dotfiles_private_dir
 
     ui.section_header("Machine Bootstrap")
+    if headless:
+        ui.status_line("[blue]i[/blue]", "mode", "headless — interactive steps will be skipped")
 
     # 1. Ensure Xcode CLI Tools (macOS — needed for git, brew, etc.)
-    ui.run_step(
-        "Ensure Xcode CLI Tools",
-        lambda: _ensure_xcode_cli_tools(dry_run=dry_run),
-        interactive=True,
-    )
+    if headless:
+        _skip_step("Ensure Xcode CLI Tools")
+    else:
+        ui.run_step(
+            "Ensure Xcode CLI Tools",
+            lambda: _ensure_xcode_cli_tools(dry_run=dry_run),
+            interactive=True,
+        )
 
     # 2. Clone dotfiles repos
     def _clone_repos() -> None:
@@ -355,11 +406,17 @@ def run_init(
     ui.run_step("Clone dotfiles repos", _clone_repos)
 
     # 3. Provision SSH keys (from secrets provider or generate)
-    pub_keys: list[Path] = ui.run_step(
-        "Provision SSH keys",
-        lambda: _provision_ssh_keys(config, dry_run=dry_run),
-        interactive=True,
-    )
+    if headless:
+        _skip_step("Provision SSH keys")
+        # Collect any existing public keys so downstream steps can use them.
+        # Must run after clone (step 2) since it reads keys.toml from dotfiles-private.
+        pub_keys = _collect_existing_pub_keys(config)
+    else:
+        pub_keys = ui.run_step(
+            "Provision SSH keys",
+            lambda: _provision_ssh_keys(config, dry_run=dry_run),
+            interactive=True,
+        )
 
     # 3b. Generate SSH config from keys.toml
     _, key_configs = load_ssh_key_config(dotfiles_private_dir)
@@ -369,13 +426,17 @@ def run_init(
     )
 
     # 4. Register SSH keys with GitHub
-    def _register_all_ssh_keys() -> None:
-        if not _ensure_gh_authenticated(dry_run=dry_run):
-            return
-        for pub_key in pub_keys:
-            _register_ssh_key_with_github(pub_key, dry_run=dry_run)
+    if headless:
+        _skip_step("Register SSH keys with GitHub")
+    else:
 
-    ui.run_step("Register SSH keys with GitHub", _register_all_ssh_keys, interactive=True)
+        def _register_all_ssh_keys() -> None:
+            if not _ensure_gh_authenticated(dry_run=dry_run):
+                return
+            for pub_key in pub_keys:
+                _register_ssh_key_with_github(pub_key, dry_run=dry_run)
+
+        ui.run_step("Register SSH keys with GitHub", _register_all_ssh_keys, interactive=True)
 
     # 5. Switch remotes to SSH
     ui.run_step(
@@ -394,18 +455,24 @@ def run_init(
     )
 
     # 7. Brew bundle
-    ui.run_step(
-        "Brew bundle",
-        lambda: brew_bundle(config, dry_run=dry_run),
-        interactive=True,
-    )
+    if headless:
+        _skip_step("Brew bundle")
+    else:
+        ui.run_step(
+            "Brew bundle",
+            lambda: brew_bundle(config, dry_run=dry_run),
+            interactive=True,
+        )
 
     # 8. Install globals
-    ui.run_step(
-        "Install globals",
-        lambda: install_globals(config, dry_run=dry_run),
-        interactive=True,
-    )
+    if headless:
+        _skip_step("Install globals")
+    else:
+        ui.run_step(
+            "Install globals",
+            lambda: install_globals(config, dry_run=dry_run),
+            interactive=True,
+        )
 
     # 9. Build Claude config
     ui.run_step(
@@ -420,11 +487,14 @@ def run_init(
     )
 
     # 11. Apply macOS defaults
-    ui.run_step(
-        "Apply macOS defaults",
-        lambda: apply_macos_defaults(config, dry_run=dry_run),
-        interactive=True,
-    )
+    if headless:
+        _skip_step("Apply macOS defaults")
+    else:
+        ui.run_step(
+            "Apply macOS defaults",
+            lambda: apply_macos_defaults(config, dry_run=dry_run),
+            interactive=True,
+        )
 
     # 12. Set up display launch agent
     ui.run_step(

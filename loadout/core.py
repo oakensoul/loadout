@@ -108,14 +108,14 @@ def run_scaffold(
     )
 
 
-def run_init(user: str, orgs: list[str], *, dry_run: bool = False) -> None:
+def run_init(user: str, orgs: list[str], *, dry_run: bool = False, headless: bool = False) -> None:
     """Full machine bootstrap flow.
 
     Delegates to :mod:`loadout.init`.
     """
     from loadout.init import run_init as _run_init
 
-    _run_init(user, orgs, dry_run=dry_run)
+    _run_init(user, orgs, dry_run=dry_run, headless=headless)
 
 
 def run_update(*, dry_run: bool = False) -> None:

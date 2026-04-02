@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from loadout.config import LoadoutConfig
 from loadout.init import (
     _bootstrap_canvas_config,
+    _collect_existing_pub_keys,
     _ensure_gh_authenticated,
     _provision_ssh_keys,
     run_init,
@@ -684,3 +685,138 @@ def test_provision_ssh_keys_dry_run_with_provider(
     assert len(pub_keys) == 1
     key_path = tmp_path / ".ssh" / "id_acme"
     assert not key_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# _collect_existing_pub_keys
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
+def test_collect_existing_pub_keys_fallback(mock_ssh_config: MagicMock, tmp_path: Path) -> None:
+    """Without key config, should find default id_ed25519.pub if it exists."""
+    ssh_dir = tmp_path / ".ssh"
+    ssh_dir.mkdir()
+    pub = ssh_dir / "id_ed25519.pub"
+    pub.write_text("ssh-ed25519 AAAA test\n", encoding="utf-8")
+
+    config = LoadoutConfig(user="testuser", orgs=["org1"], base_dir=tmp_path)
+    result = _collect_existing_pub_keys(config)
+    assert result == [pub]
+
+
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
+def test_collect_existing_pub_keys_no_keys(mock_ssh_config: MagicMock, tmp_path: Path) -> None:
+    """When no keys exist on disk, should return empty list."""
+    config = LoadoutConfig(user="testuser", orgs=["org1"], base_dir=tmp_path)
+    result = _collect_existing_pub_keys(config)
+    assert result == []
+
+
+@patch("loadout.init.load_ssh_key_config")
+def test_collect_existing_pub_keys_from_config(mock_ssh_config: MagicMock, tmp_path: Path) -> None:
+    """Should find pub keys matching key config entries."""
+    from loadout.secrets import SshKeyConfig
+
+    mock_ssh_config.return_value = (
+        "op",
+        [
+            SshKeyConfig(org="acme", filename="id_acme", secret_path="op://V/acme/key"),
+            SshKeyConfig(org="beta", filename="id_beta", secret_path="op://V/beta/key"),
+        ],
+    )
+    ssh_dir = tmp_path / ".ssh"
+    ssh_dir.mkdir()
+    (ssh_dir / "id_acme.pub").write_text("ssh-ed25519 AAAA acme\n", encoding="utf-8")
+    # id_beta.pub does not exist
+
+    config = LoadoutConfig(user="testuser", orgs=["acme", "beta"], base_dir=tmp_path)
+    result = _collect_existing_pub_keys(config)
+    assert result == [ssh_dir / "id_acme.pub"]
+
+
+# ---------------------------------------------------------------------------
+# Headless mode
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
+@patch("loadout.init.install_globals")
+@patch("loadout.init.build_dotfiles")
+@patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
+@patch("loadout.init.runner.run", side_effect=_fake_run)
+@patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
+def test_run_init_headless_skips_interactive(
+    mock_ssh_config: MagicMock,
+    mock_which: MagicMock,
+    mock_run: MagicMock,
+    mock_brew: MagicMock,
+    mock_is_macos: MagicMock,
+    mock_build: MagicMock,
+    mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
+    mock_save: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Headless mode should skip interactive steps but still run build, claude, save."""
+    (tmp_path / ".dotfiles").mkdir()
+    (tmp_path / ".dotfiles-private").mkdir()
+
+    run_init("testuser", ["org1"], base_dir=tmp_path, headless=True)
+
+    # Interactive steps should NOT be called
+    mock_brew.assert_not_called()
+    mock_globals.assert_not_called()
+    mock_macos_defaults.assert_not_called()
+
+    # SSH keygen should NOT be called (headless skips provisioning)
+    keygen_calls = [c for c in mock_run.call_args_list if "ssh-keygen" in c.args[0]]
+    assert len(keygen_calls) == 0
+
+    # Xcode should NOT be called
+    xcode_calls = [c for c in mock_run.call_args_list if "xcode-select" in c.args[0]]
+    assert len(xcode_calls) == 0
+
+    # GitHub auth should NOT be called
+    gh_auth_calls = [c for c in mock_run.call_args_list if "gh" in c.args[0]]
+    assert len(gh_auth_calls) == 0
+
+    # Non-interactive steps SHOULD still run
+    mock_build.assert_called_once()
+    mock_claude.assert_called_once()
+    mock_save.assert_called_once()
+
+
+@patch("loadout.init.save_config")
+@patch("loadout.init.apply_macos_defaults")
+@patch("loadout.init.build_claude_config")
+@patch("loadout.init.install_globals")
+@patch("loadout.init.build_dotfiles")
+@patch("loadout.init.is_macos", return_value=False)
+@patch("loadout.init.brew_bundle")
+@patch("loadout.init.runner.run", side_effect=_fake_run)
+@patch("loadout.init.shutil.which", return_value="/usr/bin/thing")
+@patch("loadout.init.load_ssh_key_config", return_value=("op", []))
+def test_run_init_headless_still_clones_repos(
+    mock_ssh_config: MagicMock,
+    mock_which: MagicMock,
+    mock_run: MagicMock,
+    mock_brew: MagicMock,
+    mock_is_macos: MagicMock,
+    mock_build: MagicMock,
+    mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    mock_macos_defaults: MagicMock,
+    mock_save: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Headless mode should still clone dotfiles repos."""
+    run_init("testuser", ["org1"], base_dir=tmp_path, headless=True)
+
+    clone_calls = [c for c in mock_run.call_args_list if "clone" in c.args[0]]
+    assert len(clone_calls) == 2  # dotfiles + dotfiles-private

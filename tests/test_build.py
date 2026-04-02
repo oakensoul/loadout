@@ -13,6 +13,7 @@ import yaml
 
 from loadout.build import (
     MergeStrategy,
+    _append_zshrc_drop_ins,
     _backup_file,
     _get_merge_strategy,
     _merge_concat,
@@ -467,3 +468,50 @@ class TestAtomicBuildFailure:
         # No leftover temp dirs.
         temp_dirs = list(config.dotfiles_dir.glob("loadout-build-*"))
         assert temp_dirs == []
+
+
+class TestAppendZshrcDropIns:
+    """Tests for _append_zshrc_drop_ins helper."""
+
+    def test_appends_drop_in_sourcing(self, tmp_path: Path) -> None:
+        """Should append .zshrc.d/ and .zshrc.local sourcing to .zshrc."""
+        zshrc = tmp_path / ".zshrc"
+        zshrc.write_text("# base config\nexport FOO=1\n", encoding="utf-8")
+
+        _append_zshrc_drop_ins(tmp_path)
+
+        content = zshrc.read_text(encoding="utf-8")
+        assert "zshrc.d" in content
+        assert "zshrc.local" in content
+        assert "export FOO=1" in content
+
+    def test_skips_when_already_present(self, tmp_path: Path) -> None:
+        """Should not duplicate sourcing if sentinel comment is already present."""
+        original = "# base config\n# --- loadout: drop-in sourcing ---\n"
+        zshrc = tmp_path / ".zshrc"
+        zshrc.write_text(original, encoding="utf-8")
+
+        _append_zshrc_drop_ins(tmp_path)
+
+        content = zshrc.read_text(encoding="utf-8")
+        assert content == original
+
+    def test_skips_when_no_zshrc(self, tmp_path: Path) -> None:
+        """Should do nothing if .zshrc doesn't exist."""
+        _append_zshrc_drop_ins(tmp_path)
+        assert not (tmp_path / ".zshrc").exists()
+
+
+class TestBuildDotfilesDropIns:
+    """Integration test: build_dotfiles appends drop-in sourcing."""
+
+    def test_full_build_includes_drop_ins(self, tmp_path: Path) -> None:
+        config = _setup_dotfiles(tmp_path, ["acme"])
+
+        build_dotfiles(config)
+
+        zshrc = (tmp_path / ".zshrc").read_text(encoding="utf-8")
+        assert "# base zshrc" in zshrc
+        assert "# acme zshrc" in zshrc
+        assert ".zshrc.d" in zshrc
+        assert ".zshrc.local" in zshrc
