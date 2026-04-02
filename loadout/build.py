@@ -198,6 +198,39 @@ def _apply_overlay(
             status_line(">>", f"replace ({label})", overlay_file.name)
 
 
+_ZSHRC_DROP_IN_SNIPPET = """\
+
+# --- loadout: drop-in sourcing ---
+# Source all scripts in ~/.zshrc.d/ (managed by loadout globals and
+# available for external tools like devbox to add shell hooks).
+if [ -d "$HOME/.zshrc.d" ]; then
+  for _loadout_rc in "$HOME"/.zshrc.d/*.sh(N); do
+    source "$_loadout_rc"
+  done
+  unset _loadout_rc
+fi
+
+# Source ~/.zshrc.local if it exists (for machine-specific customisations
+# that should survive loadout build).
+if [ -f "$HOME/.zshrc.local" ]; then
+  source "$HOME/.zshrc.local"
+fi
+"""
+
+
+def _append_zshrc_drop_ins(build_dir: Path) -> None:
+    """Append drop-in sourcing to the built .zshrc if present."""
+    zshrc = build_dir / ".zshrc"
+    if not zshrc.exists():
+        return
+    content = zshrc.read_text(encoding="utf-8")
+    if "# --- loadout: drop-in sourcing ---" in content:
+        # Already has drop-in sourcing (e.g. from a previous build)
+        return
+    zshrc.write_text(content.rstrip("\n") + _ZSHRC_DROP_IN_SNIPPET, encoding="utf-8")
+    status_line(">>", "drop-ins", ".zshrc (appended .zshrc.d/ and .zshrc.local sourcing)")
+
+
 def _build_into(
     build_dir: Path,
     base_dir: Path,
@@ -246,6 +279,9 @@ def _build_into(
             home_dir,
         )
         status_line(">>", "gitconfig", ".gitconfig")
+
+    # Append drop-in sourcing for .zshrc.d/ and .zshrc.local.
+    _append_zshrc_drop_ins(build_dir)
 
 
 def build_dotfiles(config: LoadoutConfig, *, dry_run: bool = False) -> None:

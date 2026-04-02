@@ -115,7 +115,12 @@ class TestRunInit:
     @patch("loadout.init.run_init")
     def test_run_init_delegates(self, mock_init: MagicMock) -> None:
         core.run_init("testuser", ["org1"], dry_run=True)
-        mock_init.assert_called_once_with("testuser", ["org1"], dry_run=True)
+        mock_init.assert_called_once_with("testuser", ["org1"], dry_run=True, headless=False)
+
+    @patch("loadout.init.run_init")
+    def test_run_init_headless_delegates(self, mock_init: MagicMock) -> None:
+        core.run_init("testuser", ["org1"], dry_run=False, headless=True)
+        mock_init.assert_called_once_with("testuser", ["org1"], dry_run=False, headless=True)
 
 
 class TestRunUpdate:

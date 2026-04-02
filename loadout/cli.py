@@ -123,18 +123,27 @@ def scaffold(
 @cli.command()
 @click.option("--user", required=True, help="GitHub username (owner of dotfiles repos).")
 @click.option("--orgs", required=True, multiple=True, help="Org names (repeat for multiple).")
+@click.option(
+    "--headless",
+    is_flag=True,
+    default=False,
+    help="Skip interactive steps (browser auth, 1Password, brew, etc.).",
+)
 @click.pass_context
-def init(ctx: click.Context, user: str, orgs: tuple[str, ...]) -> None:
+def init(ctx: click.Context, user: str, orgs: tuple[str, ...], headless: bool) -> None:
     """Bootstrap a new machine for the given user and orgs.
 
     Clones dotfile repos, generates SSH keys, builds dotfiles, runs
     Homebrew bundle, and installs global packages.
 
+    Use --headless for non-interactive environments (e.g. devbox) where
+    browser auth, 1Password, and other interactive steps are unavailable.
+
     Example: loadout init --user=oakensoul --orgs=personal --orgs=splash
     """
     from loadout.core import run_init
 
-    run_init(user, list(orgs), dry_run=ctx.obj["dry_run"])
+    run_init(user, list(orgs), dry_run=ctx.obj["dry_run"], headless=headless)
 
 
 @cli.command()
