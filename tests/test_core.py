@@ -139,7 +139,9 @@ class TestRunUpdate:
         core.run_update(dry_run=True)
 
         mock_load_config.assert_called_once()
-        mock_update.assert_called_once_with(sentinel_config, dry_run=True)
+        mock_update.assert_called_once_with(
+            sentinel_config, dry_run=True, skip_brew=False, skip_globals=False
+        )
 
 
 class TestRunUpgrade:
@@ -158,4 +160,6 @@ class TestRunUpgrade:
         core.run_upgrade(dry_run=True)
 
         mock_load_config.assert_called_once()
-        mock_upgrade.assert_called_once_with(sentinel_config, dry_run=True)
+        mock_upgrade.assert_called_once_with(
+            sentinel_config, dry_run=True, skip_brew=False, skip_globals=False
+        )
