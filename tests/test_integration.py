@@ -315,14 +315,14 @@ class TestConfigIntegration:
     """Test config save/load with real files."""
 
     def test_save_load_round_trip(self, tmp_path: Path) -> None:
-        config = LoadoutConfig(user="oakensoul", orgs=["acme", "widgets"], base_dir=tmp_path)
+        config = LoadoutConfig(user="testuser", orgs=["acme", "widgets"], base_dir=tmp_path)
 
         # Must create the directory
         config.config_path.parent.mkdir(parents=True, exist_ok=True)
         save_config(config)
 
         loaded = load_config(base_dir=tmp_path)
-        assert loaded.user == "oakensoul"
+        assert loaded.user == "testuser"
         assert loaded.orgs == ["acme", "widgets"]
 
     def test_config_then_build(self, tmp_path: Path) -> None:

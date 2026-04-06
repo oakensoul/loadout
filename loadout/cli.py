@@ -121,7 +121,7 @@ def scaffold(
     Uses cookiecutter to generate a private dotfiles repo from a template.
     Run this BEFORE 'loadout init'.
 
-    Example: loadout scaffold --user=oakensoul --orgs=personal \\
+    Example: loadout scaffold --user=yourname --orgs=personal \\
              --git-name="Jane Doe" --git-email="jane@example.com"
     """
     from loadout.core import run_scaffold
@@ -157,7 +157,7 @@ def init(ctx: click.Context, user: str, orgs: tuple[str, ...], headless: bool) -
     Use --headless for non-interactive environments (e.g. devbox) where
     browser auth, 1Password, and other interactive steps are unavailable.
 
-    Example: loadout init --user=oakensoul --orgs=personal --orgs=splash
+    Example: loadout init --user=yourname --orgs=personal --orgs=work
     """
     from loadout.core import run_init
 

@@ -23,15 +23,15 @@ class TestGenerateSshConfig:
         """Keys with explicit host use that value."""
         keys = [
             SshKeyConfig(
-                org="splash",
-                filename="id_ed25519_splash",
+                org="work",
+                filename="id_ed25519_work",
                 secret_path="",
-                host="github.com-splash",
+                host="github.com-work",
                 host_name="github.com",
             )
         ]
         config = generate_ssh_config(keys, tmp_path / ".ssh")
-        assert "Host github.com-splash" in config
+        assert "Host github.com-work" in config
         assert "HostName github.com" in config
 
     def test_multiple_keys_auto_alias(self, tmp_path: Path) -> None:

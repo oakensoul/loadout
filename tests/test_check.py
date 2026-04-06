@@ -146,12 +146,12 @@ class TestCheckGithubSsh:
             args=["ssh", "-T", "git@github.com"],
             returncode=1,
             stdout="",
-            stderr="Hi oakensoul! You've successfully authenticated.",
+            stderr="Hi testuser! You've successfully authenticated.",
         )
         with patch("loadout.check.subprocess.run", return_value=completed):
             result = check_github_ssh()
         assert result.status == CheckStatus.OK
-        assert "Hi oakensoul" in result.detail
+        assert "Hi testuser" in result.detail
 
     def test_ssh_no_greeting(self) -> None:
         completed = subprocess.CompletedProcess(

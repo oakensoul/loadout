@@ -76,7 +76,7 @@ class TestLoadConfig:
 
     def test_round_trip_save_load(self, tmp_path: Path) -> None:
         """Saving and then loading a config preserves all fields."""
-        original = LoadoutConfig(user="oakensoul", orgs=["acme", "widgets"], base_dir=tmp_path)
+        original = LoadoutConfig(user="testuser", orgs=["acme", "widgets"], base_dir=tmp_path)
         save_config(original)
 
         loaded = load_config(base_dir=tmp_path)

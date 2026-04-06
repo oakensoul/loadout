@@ -33,7 +33,7 @@ Loadout is a **tool**, not a config. Config lives separately:
 |------|---------|
 | `oakensoul/loadout` | This repo — Python package, CLI logic |
 | `oakensoul/dotfiles` | Public base config — brewfiles, dotfiles, macos scripts |
-| `oakensoul/dotfiles-private` | Private org config — personal, splash, mythical overlays |
+| `oakensoul/dotfiles-private` | Private org config — personal, work, creative overlays |
 
 The package contains the logic. `~/.dotfiles/` + `~/.dotfiles-private/` contain the user's personal config. Same model as `git` + `~/.gitconfig`.
 
@@ -43,15 +43,15 @@ The package contains the logic. `~/.dotfiles/` + `~/.dotfiles-private/` contain 
 
 | User | Type | Access | Purpose |
 |------|------|--------|---------|
-| `gunnar` | Personal | Physical display | Day-to-day personal |
+| `alice` | Personal | Physical display | Day-to-day personal |
 | `work` | Work | Screen Share (virtual display) | Focused work context |
 | `devbox1`, `devbox2` | Dev | SSH only | Disposable, isolated |
 
 Each user declares which orgs they load:
 
 ```bash
-loadout init --user=gunnar --orgs=personal --orgs=mythical
-loadout init --user=work   --orgs=splash
+loadout init --user=alice --orgs=personal --orgs=creative
+loadout init --user=work  --orgs=work
 ```
 
 ---
@@ -136,7 +136,7 @@ Warn-only health check — never mutates anything. Currently checks:
 !  Node.js        node not found on PATH
 ✓  Python         Python 3.x.x
 ✓  1Password CLI  op found on PATH
-✓  GitHub SSH     Hi oakensoul! ...
+✓  GitHub SSH     Hi yourname! ...
 ✓  Claude Code    claude found on PATH
 ✓  Brewfile       found at ~/.dotfiles/Brewfile
 ```
@@ -150,7 +150,7 @@ Future checks (planned): devbox reachability, canvas staleness, AWS credential e
 Stow is replaced by a Python build step. No symlinks — layers merge cleanly.
 
 ```
-~/.dotfiles/dotfiles/base/   +   ~/.dotfiles-private/dotfiles/base/   +   ~/.dotfiles-private/dotfiles/orgs/splash/
+~/.dotfiles/dotfiles/base/   +   ~/.dotfiles-private/dotfiles/base/   +   ~/.dotfiles-private/dotfiles/orgs/work/
        .zshrc                            .zshrc                                     .zshrc
        .gitconfig                        .gitconfig                                 .gitconfig
             │                                │                                          │
@@ -170,14 +170,14 @@ The private base layer is optional — when `~/.dotfiles-private/dotfiles/base/`
 [include]
     path = ~/.gitconfig.d/private-base
 [include]
-    path = ~/.gitconfig.d/splash
+    path = ~/.gitconfig.d/work
 ```
 
 ```ini
-# ~/.gitconfig.d/splash
+# ~/.gitconfig.d/work
 [user]
-    email = rjohnson@splashsports.com
-    signingkey = ~/.ssh/id_ed25519_splash
+    email = you@company.com
+    signingkey = ~/.ssh/id_ed25519_work
 ```
 
 ---
@@ -259,9 +259,9 @@ kebab-case everywhere: `[a-z0-9-]`, no leading/trailing dashes.
 
 | Thing | Convention | Example |
 |-------|-----------|---------|
-| Org names | kebab-case | `personal`, `splash`, `mythical` |
-| User names | lowercase | `gunnar`, `work` |
-| AWS profiles | kebab-case | `splash-main`, `personal-main` |
+| Org names | kebab-case | `personal`, `work`, `creative` |
+| User names | lowercase | `alice`, `work` |
+| AWS profiles | kebab-case | `work-main`, `personal-main` |
 
 ---
 

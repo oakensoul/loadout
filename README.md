@@ -41,7 +41,7 @@ This installs the `loadout` binary into your PATH.
 
 ```bash
 # 1. Bootstrap a new machine for a user + orgs
-loadout init --user=oakensoul --orgs=personal --orgs=splash
+loadout init --user=yourname --orgs=personal --orgs=work
 
 # 2. Verify everything is set up
 loadout check
@@ -62,8 +62,8 @@ with GitHub, builds dotfiles, runs Homebrew bundle, installs global packages,
 assembles Claude Code configuration, and applies macOS defaults.
 
 ```bash
-loadout init --user=oakensoul --orgs=personal --orgs=splash
-loadout init --user=work --orgs=splash --dry-run
+loadout init --user=yourname --orgs=personal --orgs=work
+loadout init --user=work --orgs=work --dry-run
 ```
 
 ### `loadout update`
@@ -257,8 +257,8 @@ All scripts are invoked with `bash -euo pipefail` for fail-fast safety.
 Loadout stores its configuration in `~/.dotfiles/.loadout.toml`:
 
 ```toml
-user = "oakensoul"
-orgs = ["personal", "splash"]
+user = "yourname"
+orgs = ["personal", "work"]
 github_token_op_path = "op://Personal/GitHub Token/credential"
 nvm_version = "0.40.1"
 pyenv_version = "3"
