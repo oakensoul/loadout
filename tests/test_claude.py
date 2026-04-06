@@ -103,6 +103,74 @@ class TestBuildClaudeMd:
         assert content.index("acme") < content.index("globex")
 
 
+class TestBuildSettingsJson:
+    """Tests for settings.json deep-merging."""
+
+    def test_public_base_only(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path)
+        base = {
+            "model": "opus",
+            "statusLine": {"type": "command", "command": "~/.claude/statusline.sh"},
+        }
+        _write(config.dotfiles_dir / "claude" / "base" / "settings.json", json.dumps(base))
+
+        build_claude_config(config)
+
+        result = json.loads((config.claude_dir / "settings.json").read_text(encoding="utf-8"))
+        assert result["model"] == "opus"
+        assert result["statusLine"]["command"] == "~/.claude/statusline.sh"
+
+    def test_private_base_merges(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path)
+        base = {"model": "opus"}
+        private = {"permissions": {"deny": ["Bash(sudo *)"]}}
+        _write(config.dotfiles_dir / "claude" / "base" / "settings.json", json.dumps(base))
+        _write(
+            config.dotfiles_private_dir / "claude" / "base" / "settings.json",
+            json.dumps(private),
+        )
+
+        build_claude_config(config)
+
+        result = json.loads((config.claude_dir / "settings.json").read_text(encoding="utf-8"))
+        assert result["model"] == "opus"
+        assert result["permissions"]["deny"] == ["Bash(sudo *)"]
+
+    def test_org_overlay_merges(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path, orgs=["acme"])
+        base = {"model": "opus", "statusLine": {"type": "command"}}
+        org = {"model": "sonnet"}
+        _write(config.dotfiles_dir / "claude" / "base" / "settings.json", json.dumps(base))
+        _write(
+            config.dotfiles_private_dir / "claude" / "orgs" / "acme" / "settings-acme.json",
+            json.dumps(org),
+        )
+
+        build_claude_config(config)
+
+        result = json.loads((config.claude_dir / "settings.json").read_text(encoding="utf-8"))
+        assert result["model"] == "sonnet"  # org overrides base
+        assert result["statusLine"]["type"] == "command"  # base preserved
+
+    def test_no_sources_skips(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path)
+        build_claude_config(config)
+        assert not (config.claude_dir / "settings.json").exists()
+
+    def test_private_base_only(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path)
+        private = {"model": "haiku"}
+        _write(
+            config.dotfiles_private_dir / "claude" / "base" / "settings.json",
+            json.dumps(private),
+        )
+
+        build_claude_config(config)
+
+        result = json.loads((config.claude_dir / "settings.json").read_text(encoding="utf-8"))
+        assert result["model"] == "haiku"
+
+
 class TestCopyStatusline:
     """Tests for statusline.sh copying."""
 
@@ -143,6 +211,10 @@ class TestBuildClaudeConfigBehavior:
         config = _make_config(tmp_path, orgs=["acme"])
         base = {"mcpServers": {"s": {"command": "x"}}}
         _write(config.dotfiles_dir / "claude" / "base" / "mcp-shared.json", json.dumps(base))
+        _write(
+            config.dotfiles_dir / "claude" / "base" / "settings.json",
+            json.dumps({"model": "opus"}),
+        )
         _write(config.dotfiles_dir / "claude" / "CLAUDE.md.template", "# Template")
         _write(config.dotfiles_dir / "claude" / "statusline.sh", "#!/bin/bash")
         _write(
@@ -154,6 +226,7 @@ class TestBuildClaudeConfigBehavior:
 
         # No files should have been written
         assert not (config.claude_dir / "mcp.json").exists()
+        assert not (config.claude_dir / "settings.json").exists()
         assert not (config.claude_dir / "CLAUDE.md").exists()
         assert not (config.claude_dir / "statusline.sh").exists()
         assert not (config.claude_dir / "providers").exists()

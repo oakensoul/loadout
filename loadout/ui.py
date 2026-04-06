@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.rule import Rule
 
@@ -70,8 +71,9 @@ def run_step(description: str, fn: Callable[[], T], *, interactive: bool = False
             result = fn()
             console.print(f"[green]✓[/green]  {description}")
             return result
-        except Exception:
+        except Exception as exc:
             console.print(f"[red]✗[/red]  {description}")
+            _print_step_error(exc)
             raise
 
     try:
@@ -79,6 +81,15 @@ def run_step(description: str, fn: Callable[[], T], *, interactive: bool = False
             result = fn()
         console.print(f"[green]✓[/green]  {description}")
         return result
-    except Exception:
+    except Exception as exc:
         console.print(f"[red]✗[/red]  {description}")
+        _print_step_error(exc)
         raise
+
+
+def _print_step_error(exc: BaseException) -> None:
+    """Print stderr from a LoadoutCommandError, if present."""
+    from loadout.exceptions import LoadoutCommandError  # avoid circular import at module level
+
+    if isinstance(exc, LoadoutCommandError) and exc.stderr:
+        err_console.print(f"[dim]{escape(exc.stderr.rstrip())}[/dim]")

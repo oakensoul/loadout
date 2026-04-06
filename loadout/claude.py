@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from typing import cast
 
 from loadout.config import LoadoutConfig
 from loadout.exceptions import LoadoutBuildError
@@ -86,6 +87,53 @@ def _build_claude_md(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     status_line("[green]✓[/green]", "CLAUDE.md", str(dest))
 
 
+def _build_settings_json(config: LoadoutConfig, *, dry_run: bool = False) -> None:
+    """Deep-merge settings.json from public base, private base, and per-org layers."""
+    merged: dict[str, object] = {}
+
+    public_base = config.dotfiles_dir / "claude" / "base" / "settings.json"
+    if public_base.exists():
+        try:
+            merged = json.loads(public_base.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise LoadoutBuildError(f"Malformed JSON in {public_base}: {exc}") from exc
+        verbose_line("loaded settings.json from public base")
+
+    private_base = config.dotfiles_private_dir / "claude" / "base" / "settings.json"
+    if private_base.exists():
+        try:
+            pb_data: object = json.loads(private_base.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise LoadoutBuildError(f"Malformed JSON in {private_base}: {exc}") from exc
+        merged = cast(dict[str, object], deep_merge(merged, pb_data))
+        verbose_line("merged settings.json from private base")
+
+    for org in config.orgs:
+        org_settings = (
+            config.dotfiles_private_dir / "claude" / "orgs" / org / f"settings-{org}.json"
+        )
+        if org_settings.exists():
+            try:
+                org_data: object = json.loads(org_settings.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise LoadoutBuildError(f"Malformed JSON in {org_settings}: {exc}") from exc
+            merged = cast(dict[str, object], deep_merge(merged, org_data))
+            verbose_line(f"merged settings.json for org: {org}")
+
+    if not merged:
+        verbose_line("no settings.json sources found")
+        return
+
+    dest = config.claude_dir / "settings.json"
+    if dry_run:
+        status_line("[dim]▶[/dim]", "settings.json", "would write (dry run)")
+        return
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+    status_line("[green]✓[/green]", "settings.json", str(dest))
+
+
 def _copy_statusline(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """Copy statusline.sh into the Claude config directory."""
     src = config.dotfiles_dir / "claude" / "statusline.sh"
@@ -131,6 +179,7 @@ def build_claude_config(config: LoadoutConfig, *, dry_run: bool = False) -> None
 
     Creates ``~/.claude/`` (via ``config.claude_dir``) and populates it with:
     - ``mcp.json`` — deep-merged MCP server config
+    - ``settings.json`` — deep-merged settings from base + org layers
     - ``CLAUDE.md`` — concatenated template + org overlays
     - ``statusline.sh`` — copied from public dotfiles
     - ``providers/`` — auth provider scripts from private dotfiles
@@ -139,6 +188,7 @@ def build_claude_config(config: LoadoutConfig, *, dry_run: bool = False) -> None
         config.claude_dir.mkdir(parents=True, exist_ok=True)
 
     _build_mcp_json(config, dry_run=dry_run)
+    _build_settings_json(config, dry_run=dry_run)
     _build_claude_md(config, dry_run=dry_run)
     _copy_statusline(config, dry_run=dry_run)
     _copy_providers(config, dry_run=dry_run)
