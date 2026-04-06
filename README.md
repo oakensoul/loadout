@@ -1,0 +1,313 @@
+# Loadout
+
+Machine configuration management for multi-context setups. If you maintain
+different dotfiles across personal machines, work laptops, and dev boxes — each
+with their own orgs, tools, and secrets — loadout gets a fresh machine from zero
+to fully configured in one command.
+
+Loadout orchestrates dotfile building, Homebrew, global package installs, and
+health checks across multiple user/org contexts.
+
+## Getting Started
+
+**Looking to set up your Mac?** The [dotfiles](https://github.com/oakensoul/dotfiles) repository is the recommended starting point. It includes a comprehensive setup guide and serves as the base layer for the Loadout configuration system. Fork it, customize it, and use `loadout init` to bootstrap your machine.
+
+This repository contains the `loadout` CLI tool itself. Read on if you're developing the tool or building your own configuration system.
+
+## Prerequisites
+
+- **Python 3.11+** — required runtime
+- **Git** — for cloning and updating dotfile repos
+- **Homebrew** — optional but expected for macOS package management
+- **1Password CLI (`op`)** — optional, used for secret-backed SSH key registration
+- **GitHub CLI (`gh`)** — optional, used during `init` for SSH key registration
+
+## Install
+
+**For Mac setup**, start with the [dotfiles](https://github.com/oakensoul/dotfiles) repo — it walks you through the full process including installing loadout.
+
+**For standalone or custom use** (building your own config system, or developing the CLI):
+
+```bash
+# Clone and install in development mode
+git clone https://github.com/oakensoul/loadout.git
+cd loadout
+pip install -e ".[dev]"
+```
+
+This installs the `loadout` binary into your PATH.
+
+## Quick Start
+
+```bash
+# 1. Bootstrap a new machine for a user + orgs
+loadout init --user=yourname --orgs=personal --orgs=work
+
+# 2. Verify everything is set up
+loadout check
+
+# 3. Day-to-day: pull latest config and rebuild
+loadout update
+
+# 4. Intentional upgrades (includes brew upgrade)
+loadout upgrade
+```
+
+## Commands
+
+### `loadout init`
+
+Full machine bootstrap — clones dotfile repos, generates SSH keys, registers
+with GitHub, builds dotfiles, runs Homebrew bundle, installs global packages,
+assembles Claude Code configuration, and applies macOS defaults.
+
+```bash
+loadout init --user=yourname --orgs=personal --orgs=work
+loadout init --user=work --orgs=work --dry-run
+```
+
+### `loadout update`
+
+Pull latest dotfile sources, rebuild merged dotfiles, run `brew bundle`, and
+install global packages. Safe and idempotent.
+
+```bash
+loadout update
+loadout update --dry-run
+```
+
+### `loadout upgrade`
+
+Everything in `update` plus `brew upgrade`. Run intentionally — upgrades can
+break things.
+
+```bash
+loadout upgrade
+loadout upgrade --verbose
+```
+
+### `loadout check`
+
+Read-only health checks. Never mutates anything.
+
+```bash
+loadout check
+```
+
+### `loadout build`
+
+Merge base + org dotfile fragments into final dotfiles in `~/`.
+
+```bash
+loadout build
+loadout build --dry-run
+```
+
+### `loadout globals`
+
+Install non-Homebrew global packages: Claude Code, NVM + Node LTS,
+pyenv + Python. Runs `globals/globals.base.sh` from the public dotfiles
+repo, then installs per-org env scripts from `globals/orgs/globals.<org>.sh`
+into `~/.zshrc.d/` for shell sourcing.
+
+```bash
+loadout globals
+loadout globals --dry-run
+```
+
+### `loadout display`
+
+Switch macOS display profile (macOS only). Auto-detects connected displays
+when no mode is given. Gracefully skips on non-macOS platforms.
+
+```bash
+loadout display              # auto-detect
+loadout display connected    # force desktop/connected mode
+loadout display solo         # force laptop-solo mode
+```
+
+## Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Show what would be done without executing |
+| `-v`, `--verbose` | Increase output detail (show commands, stderr) |
+| `--help` | Show help for any command |
+
+## How It Works
+
+### Dotfile Merge Strategies
+
+Loadout merges three layers of configuration using per-file strategies:
+
+| Layer | Source | Priority |
+|-------|--------|----------|
+| Public base | `~/.dotfiles/dotfiles/base/` | Lowest |
+| Private base | `~/.dotfiles-private/dotfiles/base/` | Middle (optional) |
+| Org overlays | `~/.dotfiles-private/dotfiles/orgs/<org>/` | Highest (last org wins) |
+
+The private base layer is for personal private config that applies across all
+orgs. When the directory does not exist, the pipeline uses two layers as before.
+
+| File type | Strategy | Behavior |
+|-----------|----------|----------|
+| `.zshrc`, `.aliases`, `.zprofile`, `.zshenv` | Concatenation | Layers appended with separators |
+| `.gitconfig` | Include | Git native `[include]` directives to `~/.gitconfig.d/` |
+| `*.json` | Deep merge | Recursive merge, later layers win on conflict |
+| `*.yaml`, `*.yml` | Deep merge | Recursive merge, later layers win on conflict |
+| Everything else | Replace | Later layer replaces earlier entirely |
+
+Output is staged to `~/.dotfiles/build/` (via atomic temp-dir swap) then copied to `~/`.
+Existing files are backed up to `~/.dotfiles/backups/` before overwriting.
+Idempotent — safe to re-run.
+
+### Repo Layout
+
+| Repo | Purpose |
+|------|---------|
+| `oakensoul/loadout` | This repo — Python package, CLI logic |
+| `oakensoul/dotfiles` | Public base config — Brewfiles, dotfiles, macOS scripts, Claude base config |
+| `oakensoul/dotfiles-private` | Private org config — org-specific overlays, Brewfiles, globals, Claude org config |
+
+**Expected directory structure in dotfiles repos:**
+
+```
+~/.dotfiles/                        # oakensoul/dotfiles
+├── brewfiles/
+│   └── Brewfile.base               # base Homebrew packages
+├── dotfiles/base/
+│   ├── .zshrc, .gitconfig, .aliases
+├── globals/
+│   └── globals.base.sh             # base package installs
+├── claude/
+│   ├── base/mcp-shared.json        # shared MCP config
+│   ├── CLAUDE.md.template          # base CLAUDE.md
+│   └── statusline.sh
+└── macos/
+    ├── defaults-base.sh
+    ├── defaults-desktop.sh
+    └── defaults-laptop-*.sh
+
+~/.dotfiles-private/                # oakensoul/dotfiles-private
+├── brewfiles/
+│   ├── Brewfile.private            # private base Homebrew packages (optional)
+│   └── orgs/
+│       └── Brewfile.<org>          # per-org Homebrew packages
+├── dotfiles/
+│   ├── base/                       # private base dotfiles (optional)
+│   │   ├── .zshrc, .gitconfig      # private defaults for all orgs
+│   │   └── npm-globals.txt         # private base npm packages
+│   └── orgs/<org>/
+│       ├── .zshrc, .gitconfig      # per-org dotfile overlays
+├── globals/
+│   ├── globals.private.sh          # private base globals script (optional)
+│   └── orgs/
+│       └── globals.<org>.sh        # per-org env vars (sourced, not executed)
+└── claude/
+    ├── base/                       # private base Claude config (optional)
+    │   ├── mcp-private.json        # private base MCP config
+    │   └── CLAUDE.md               # private base CLAUDE.md overlay
+    ├── orgs/<org>/
+    │   ├── mcp-<org>.json          # per-org MCP config
+    │   └── CLAUDE.md               # per-org CLAUDE.md overlay
+    └── providers/
+        └── *.sh                    # auth provider scripts
+```
+
+### Brewfile Assembly
+
+Loadout assembles Brewfiles from fragments before running `brew bundle`:
+
+| Source | Path | Included |
+|--------|------|----------|
+| Public base | `~/.dotfiles/brewfiles/Brewfile.base` | Always |
+| Private base | `~/.dotfiles-private/brewfiles/Brewfile.private` | If present |
+| Per-org | `~/.dotfiles-private/brewfiles/orgs/Brewfile.<org>` | For each configured org |
+
+Fragments are concatenated into a single temp file and passed to
+`brew bundle --file=<temp> --no-lock`. Falls back to a single
+`~/.dotfiles/Brewfile` if the `brewfiles/` directory doesn't exist.
+
+### Claude Code Configuration
+
+Loadout assembles Claude Code config from both repos into `~/.claude/`:
+
+| Source | Target | Strategy |
+|--------|--------|----------|
+| `claude/base/mcp-shared.json` + `claude/base/mcp-private.json` + `claude/orgs/<org>/mcp-<org>.json` | `~/.claude/mcp.json` | Deep merge (later layers win) |
+| `claude/CLAUDE.md.template` + `claude/base/CLAUDE.md` + `claude/orgs/<org>/CLAUDE.md` | `~/.claude/CLAUDE.md` | Concatenation with separators |
+| `claude/statusline.sh` | `~/.claude/statusline.sh` | Copy |
+| `claude/providers/*.sh` | `~/.claude/providers/` | Copy |
+
+The private base Claude config (`claude/base/` in dotfiles-private) is optional.
+
+### macOS Defaults
+
+During `init`, loadout detects the machine type and runs the appropriate scripts:
+
+- `macos/defaults-base.sh` — always runs
+- `macos/defaults-desktop.sh` — for Mac Mini, Mac Studio, Mac Pro, iMac
+- `macos/defaults-laptop-connected.sh` — for MacBooks with external display
+- `macos/defaults-laptop-solo.sh` — for MacBooks without external display
+
+All scripts are invoked with `bash -euo pipefail` for fail-fast safety.
+
+### Config File
+
+Loadout stores its configuration in `~/.dotfiles/.loadout.toml`:
+
+```toml
+user = "yourname"
+orgs = ["personal", "work"]
+github_token_op_path = "op://Personal/GitHub Token/credential"
+nvm_version = "0.40.1"
+pyenv_version = "3"
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `user` | `""` | GitHub username — used for cloning dotfile repos |
+| `orgs` | `[]` | Org names whose overlays are applied during build |
+| `github_token_op_path` | `"op://Personal/GitHub Token/credential"` | 1Password path for GitHub token (used during `init`) |
+| `nvm_version` | `"0.40.1"` | NVM version to install via `loadout globals` |
+| `pyenv_version` | `"3"` | Python version for pyenv (e.g., `"3"`, `"3.12"`, `"3.12.1"`) |
+
+This file is written by `loadout init` and read by all other commands.
+
+## Troubleshooting
+
+For any issue, try running with `--verbose` first to see the exact commands
+being executed and their stderr output.
+
+**`loadout check` shows warnings:**
+Warnings are informational — they indicate optional tools that aren't installed.
+Errors indicate required tools that are missing.
+
+**`loadout build` fails with "Malformed JSON/YAML":**
+Check the file path in the error message. The org overlay file has a syntax error.
+Fix the file and re-run `loadout build`.
+
+**`loadout init` fails at SSH key registration:**
+This step requires both `op` (1Password CLI) and `gh` (GitHub CLI). If either
+is missing, the step is skipped with a warning. You can register your SSH key
+manually and continue.
+
+**`loadout update` fails on `git pull`:**
+Loadout uses `--ff-only` for safety. If you have local changes in your dotfiles
+repos, commit or stash them first.
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Lint
+ruff check loadout/ tests/
+
+# Type check
+mypy loadout/
+```

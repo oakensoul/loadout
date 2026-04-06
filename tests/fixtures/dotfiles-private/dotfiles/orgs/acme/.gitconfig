@@ -1,0 +1,3 @@
+[user]
+    email = dev@acme.com
+    signingkey = ~/.ssh/id_ed25519_acme
