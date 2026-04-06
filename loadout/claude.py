@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from typing import cast
 
 from loadout.config import LoadoutConfig
 from loadout.exceptions import LoadoutBuildError
@@ -104,7 +105,7 @@ def _build_settings_json(config: LoadoutConfig, *, dry_run: bool = False) -> Non
             pb_data: object = json.loads(private_base.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise LoadoutBuildError(f"Malformed JSON in {private_base}: {exc}") from exc
-        merged = deep_merge(merged, pb_data)
+        merged = cast(dict[str, object], deep_merge(merged, pb_data))
         verbose_line("merged settings.json from private base")
 
     for org in config.orgs:
@@ -116,7 +117,7 @@ def _build_settings_json(config: LoadoutConfig, *, dry_run: bool = False) -> Non
                 org_data: object = json.loads(org_settings.read_text(encoding="utf-8"))
             except json.JSONDecodeError as exc:
                 raise LoadoutBuildError(f"Malformed JSON in {org_settings}: {exc}") from exc
-            merged = deep_merge(merged, org_data)
+            merged = cast(dict[str, object], deep_merge(merged, org_data))
             verbose_line(f"merged settings.json for org: {org}")
 
     if not merged:
