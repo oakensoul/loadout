@@ -191,16 +191,29 @@ def update(ctx: click.Context, skip_brew: bool, skip_globals: bool) -> None:
 
 
 @cli.command()
+@click.option(
+    "--skip-brew/--no-skip-brew",
+    default=False,
+    help="Skip brew update, brew bundle, and brew upgrade steps.",
+)
+@click.option(
+    "--skip-globals/--no-skip-globals",
+    default=False,
+    help="Skip global tool installation step.",
+)
 @click.pass_context
-def upgrade(ctx: click.Context) -> None:
+def upgrade(ctx: click.Context, skip_brew: bool, skip_globals: bool) -> None:
     """Run full update then upgrade Homebrew packages.
 
     Includes everything in 'update' plus 'brew upgrade'. Run intentionally
     — upgrades can break things.
+
+    Use --skip-brew and/or --skip-globals in devbox environments where
+    those steps are handled by the devbox bootstrap.
     """
     from loadout.core import run_upgrade
 
-    run_upgrade(dry_run=ctx.obj["dry_run"])
+    run_upgrade(dry_run=ctx.obj["dry_run"], skip_brew=skip_brew, skip_globals=skip_globals)
 
 
 @cli.command()

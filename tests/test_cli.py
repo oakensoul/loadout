@@ -209,4 +209,29 @@ class TestCLIDelegation:
     def test_upgrade_invokes_core(self, mock_upgrade: MagicMock) -> None:
         result = CliRunner().invoke(cli, ["upgrade"])
         assert result.exit_code == 0
-        mock_upgrade.assert_called_once_with(dry_run=False)
+        mock_upgrade.assert_called_once_with(dry_run=False, skip_brew=False, skip_globals=False)
+
+    @patch("loadout.core.run_upgrade")
+    def test_upgrade_skip_brew(self, mock_upgrade: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["upgrade", "--skip-brew"])
+        assert result.exit_code == 0
+        mock_upgrade.assert_called_once_with(dry_run=False, skip_brew=True, skip_globals=False)
+
+    @patch("loadout.core.run_upgrade")
+    def test_upgrade_skip_globals(self, mock_upgrade: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["upgrade", "--skip-globals"])
+        assert result.exit_code == 0
+        mock_upgrade.assert_called_once_with(dry_run=False, skip_brew=False, skip_globals=True)
+
+    @patch("loadout.core.run_upgrade")
+    def test_upgrade_skip_both(self, mock_upgrade: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["upgrade", "--skip-brew", "--skip-globals"])
+        assert result.exit_code == 0
+        mock_upgrade.assert_called_once_with(dry_run=False, skip_brew=True, skip_globals=True)
+
+    @patch("loadout.core.run_upgrade")
+    def test_upgrade_help_shows_skip_flags(self, mock_upgrade: MagicMock) -> None:
+        result = CliRunner().invoke(cli, ["upgrade", "--help"])
+        assert result.exit_code == 0
+        assert "--skip-brew" in result.output
+        assert "--skip-globals" in result.output

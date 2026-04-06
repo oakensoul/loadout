@@ -358,3 +358,41 @@ def test_run_upgrade_no_brew(
     # Update steps should still have run
     mock_build.assert_called_once()
     mock_globals.assert_called_once()
+
+
+@patch("loadout.update.build_claude_config")
+@patch("loadout.update.install_globals")
+@patch("loadout.update.build_dotfiles")
+@patch("loadout.brew.run")
+@patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
+@patch("loadout.update.shutil.which", return_value="/opt/homebrew/bin/brew")
+@patch("loadout.update.run")
+def test_run_upgrade_skip_brew(
+    mock_update_run: MagicMock,
+    mock_update_which: MagicMock,
+    mock_brew_which: MagicMock,
+    mock_brew_run: MagicMock,
+    mock_build: MagicMock,
+    mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Both brew bundle (via update) and brew upgrade should be skipped with skip_brew."""
+    dotfiles = tmp_path / ".dotfiles"
+    dotfiles.mkdir()
+    private = tmp_path / ".dotfiles-private"
+    private.mkdir()
+
+    config = LoadoutConfig(base_dir=tmp_path)
+    run_upgrade(config, skip_brew=True)
+
+    # No brew calls at all — neither brew bundle nor brew upgrade
+    mock_brew_run.assert_not_called()
+    brew_upgrade_calls = [
+        c for c in mock_update_run.call_args_list if c.args[0] == ["brew", "upgrade"]
+    ]
+    assert len(brew_upgrade_calls) == 0
+
+    # Non-brew steps should still run
+    mock_build.assert_called_once()
+    mock_globals.assert_called_once()

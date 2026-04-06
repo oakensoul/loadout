@@ -115,7 +115,9 @@ def run_upgrade(
 
     section_header("Upgrade")
 
-    if shutil.which("brew") is not None:
+    if skip_brew:
+        status_line("[yellow]![/yellow]", "Brew upgrade", "skipped (--skip-brew)")
+    elif shutil.which("brew") is not None:
         run_step(
             "Brew upgrade",
             lambda: run(["brew", "upgrade"], dry_run=dry_run, interactive=True),
