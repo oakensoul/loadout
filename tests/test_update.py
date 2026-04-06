@@ -184,6 +184,113 @@ def test_run_update_no_brewfile(
 
 
 # ---------------------------------------------------------------------------
+# --skip-brew / --skip-globals
+# ---------------------------------------------------------------------------
+
+
+@patch("loadout.update.build_claude_config")
+@patch("loadout.update.install_globals")
+@patch("loadout.update.build_dotfiles")
+@patch("loadout.brew.run")
+@patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
+@patch("loadout.update.run")
+def test_run_update_skip_brew(
+    mock_update_run: MagicMock,
+    mock_brew_which: MagicMock,
+    mock_brew_run: MagicMock,
+    mock_build: MagicMock,
+    mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Brew steps should be skipped when skip_brew=True."""
+    dotfiles = tmp_path / ".dotfiles"
+    dotfiles.mkdir()
+    private = tmp_path / ".dotfiles-private"
+    private.mkdir()
+    brewfile = dotfiles / "Brewfile"
+    brewfile.write_text("", encoding="utf-8")
+
+    config = LoadoutConfig(base_dir=tmp_path)
+    run_update(config, skip_brew=True)
+
+    # No brew calls should have been made
+    mock_brew_run.assert_not_called()
+
+    # Other steps should still run
+    mock_build.assert_called_once()
+    mock_globals.assert_called_once()
+
+
+@patch("loadout.update.build_claude_config")
+@patch("loadout.update.install_globals")
+@patch("loadout.update.build_dotfiles")
+@patch("loadout.brew.run")
+@patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
+@patch("loadout.update.run")
+def test_run_update_skip_globals(
+    mock_update_run: MagicMock,
+    mock_brew_which: MagicMock,
+    mock_brew_run: MagicMock,
+    mock_build: MagicMock,
+    mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Globals step should be skipped when skip_globals=True."""
+    dotfiles = tmp_path / ".dotfiles"
+    dotfiles.mkdir()
+    private = tmp_path / ".dotfiles-private"
+    private.mkdir()
+    brewfile = dotfiles / "Brewfile"
+    brewfile.write_text("", encoding="utf-8")
+
+    config = LoadoutConfig(base_dir=tmp_path)
+    run_update(config, skip_globals=True)
+
+    # Brew should still run
+    mock_brew_run.assert_any_call(["brew", "update"], dry_run=False, interactive=True)
+
+    # Globals should NOT have been called
+    mock_globals.assert_not_called()
+
+    # Build should still run
+    mock_build.assert_called_once()
+
+
+@patch("loadout.update.build_claude_config")
+@patch("loadout.update.install_globals")
+@patch("loadout.update.build_dotfiles")
+@patch("loadout.brew.run")
+@patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
+@patch("loadout.update.run")
+def test_run_update_skip_both(
+    mock_update_run: MagicMock,
+    mock_brew_which: MagicMock,
+    mock_brew_run: MagicMock,
+    mock_build: MagicMock,
+    mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Both brew and globals should be skipped when both flags are set."""
+    dotfiles = tmp_path / ".dotfiles"
+    dotfiles.mkdir()
+    private = tmp_path / ".dotfiles-private"
+    private.mkdir()
+
+    config = LoadoutConfig(base_dir=tmp_path)
+    run_update(config, skip_brew=True, skip_globals=True)
+
+    # No brew or globals calls
+    mock_brew_run.assert_not_called()
+    mock_globals.assert_not_called()
+
+    # Build and git pull should still run
+    mock_build.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # run_upgrade
 # ---------------------------------------------------------------------------
 

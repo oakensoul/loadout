@@ -17,7 +17,13 @@ from loadout.ssh import install_ssh_config
 from loadout.ui import run_step, section_header, status_line
 
 
-def run_update(config: LoadoutConfig, *, dry_run: bool = False) -> None:
+def run_update(
+    config: LoadoutConfig,
+    *,
+    dry_run: bool = False,
+    skip_brew: bool = False,
+    skip_globals: bool = False,
+) -> None:
     """Pull latest dotfile sources, rebuild configuration, and install globals.
 
     Steps:
@@ -25,8 +31,8 @@ def run_update(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     2. Pull dotfiles-private repo (fast-forward only).
     3. Rebuild merged dotfiles.
     4. Build Claude config.
-    5. Run ``brew update`` and ``brew bundle``.
-    6. Install non-Homebrew globals.
+    5. Run ``brew update`` and ``brew bundle`` (unless *skip_brew*).
+    6. Install non-Homebrew globals (unless *skip_globals*).
     """
     section_header("Update")
 
@@ -74,26 +80,38 @@ def run_update(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     )
 
     # Brew update + bundle
-    run_step(
-        "Brew bundle",
-        lambda: brew_bundle(config, dry_run=dry_run),
-        interactive=True,
-    )
+    if skip_brew:
+        status_line("[yellow]![/yellow]", "Brew bundle", "skipped (--skip-brew)")
+    else:
+        run_step(
+            "Brew bundle",
+            lambda: brew_bundle(config, dry_run=dry_run),
+            interactive=True,
+        )
 
     # Install globals
-    run_step(
-        "Install globals",
-        lambda: install_globals(config, dry_run=dry_run),
-        interactive=True,
-    )
+    if skip_globals:
+        status_line("[yellow]![/yellow]", "Install globals", "skipped (--skip-globals)")
+    else:
+        run_step(
+            "Install globals",
+            lambda: install_globals(config, dry_run=dry_run),
+            interactive=True,
+        )
 
 
-def run_upgrade(config: LoadoutConfig, *, dry_run: bool = False) -> None:
+def run_upgrade(
+    config: LoadoutConfig,
+    *,
+    dry_run: bool = False,
+    skip_brew: bool = False,
+    skip_globals: bool = False,
+) -> None:
     """Run a full update then upgrade Homebrew packages.
 
     Calls :func:`run_update` first, then runs ``brew upgrade``.
     """
-    run_update(config, dry_run=dry_run)
+    run_update(config, dry_run=dry_run, skip_brew=skip_brew, skip_globals=skip_globals)
 
     section_header("Upgrade")
 

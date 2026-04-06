@@ -118,7 +118,9 @@ def run_init(user: str, orgs: list[str], *, dry_run: bool = False, headless: boo
     _run_init(user, orgs, dry_run=dry_run, headless=headless)
 
 
-def run_update(*, dry_run: bool = False) -> None:
+def run_update(
+    *, dry_run: bool = False, skip_brew: bool = False, skip_globals: bool = False
+) -> None:
     """Pull latest sources and rebuild configuration.
 
     Delegates to :mod:`loadout.update`.
@@ -127,10 +129,12 @@ def run_update(*, dry_run: bool = False) -> None:
     from loadout.update import run_update as _run_update
 
     config = load_config()
-    _run_update(config, dry_run=dry_run)
+    _run_update(config, dry_run=dry_run, skip_brew=skip_brew, skip_globals=skip_globals)
 
 
-def run_upgrade(*, dry_run: bool = False) -> None:
+def run_upgrade(
+    *, dry_run: bool = False, skip_brew: bool = False, skip_globals: bool = False
+) -> None:
     """Run update then upgrade Homebrew packages.
 
     Delegates to :mod:`loadout.update`.
@@ -139,4 +143,4 @@ def run_upgrade(*, dry_run: bool = False) -> None:
     from loadout.update import run_upgrade as _run_upgrade
 
     config = load_config()
-    _run_upgrade(config, dry_run=dry_run)
+    _run_upgrade(config, dry_run=dry_run, skip_brew=skip_brew, skip_globals=skip_globals)

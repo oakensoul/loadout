@@ -165,16 +165,29 @@ def init(ctx: click.Context, user: str, orgs: tuple[str, ...], headless: bool) -
 
 
 @cli.command()
+@click.option(
+    "--skip-brew/--no-skip-brew",
+    default=False,
+    help="Skip brew update and brew bundle steps.",
+)
+@click.option(
+    "--skip-globals/--no-skip-globals",
+    default=False,
+    help="Skip global tool installation step.",
+)
 @click.pass_context
-def update(ctx: click.Context) -> None:
+def update(ctx: click.Context, skip_brew: bool, skip_globals: bool) -> None:
     """Pull latest dotfile sources and rebuild configuration.
 
     Runs git pull on dotfile repos, rebuilds merged dotfiles,
     runs brew bundle, and installs global packages. Safe and idempotent.
+
+    Use --skip-brew and/or --skip-globals in devbox environments where
+    those steps are handled by the devbox bootstrap.
     """
     from loadout.core import run_update
 
-    run_update(dry_run=ctx.obj["dry_run"])
+    run_update(dry_run=ctx.obj["dry_run"], skip_brew=skip_brew, skip_globals=skip_globals)
 
 
 @cli.command()
