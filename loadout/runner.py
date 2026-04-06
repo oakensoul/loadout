@@ -14,17 +14,21 @@ from loadout.ui import err_console, verbose_line
 
 
 @functools.lru_cache(maxsize=1)
-def _detect_brew_bin() -> str | None:
+def detect_brew_bin() -> str | None:
     """Detect Homebrew bin directory (cached for process lifetime).
 
     Respects ``HOMEBREW_PREFIX`` so per-user Homebrew installations
-    (e.g. devbox ``~/.homebrew``) are used when set.
+    (e.g. devbox ``~/.homebrew``) are used when set.  Falls back to
+    ``~/.homebrew``, ``/opt/homebrew``, and ``/usr/local`` in order.
     """
     prefix = os.environ.get("HOMEBREW_PREFIX")
     if prefix:
         candidate = os.path.join(prefix, "bin")
         if os.path.isfile(os.path.join(candidate, "brew")):
             return candidate
+    home_brew = os.path.join(os.path.expanduser("~"), ".homebrew", "bin", "brew")
+    if os.path.isfile(home_brew):
+        return os.path.dirname(home_brew)
     if os.path.isfile("/opt/homebrew/bin/brew"):
         return "/opt/homebrew/bin"
     if os.path.isfile("/usr/local/bin/brew"):
@@ -75,7 +79,7 @@ def run(
     # Ensure Homebrew's bin directory is on PATH so that brew-installed
     # tools are discoverable by subprocesses (e.g. on macOS).
     env: dict[str, str] | None = None
-    brew_bin = _detect_brew_bin()
+    brew_bin = detect_brew_bin()
     if brew_bin is not None:
         current_path = os.environ.get("PATH", "")
         if brew_bin not in current_path.split(os.pathsep):

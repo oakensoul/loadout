@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -187,6 +188,12 @@ def _intel_brew_exists(path: str) -> bool:
     return path == "/usr/local/bin/brew"
 
 
+def _home_brew_exists(path: str) -> bool:
+    """Simulate devbox ~/.homebrew install (no system brew)."""
+    home_brew = str(Path.home() / ".homebrew" / "bin" / "brew")
+    return path == home_brew
+
+
 def _custom_and_system_brew_exists(path: str) -> bool:
     """Simulate both a custom HOMEBREW_PREFIX and system brew installed."""
     return path in ("/Users/dx-test/.homebrew/bin/brew", "/opt/homebrew/bin/brew")
@@ -197,9 +204,9 @@ class TestRunBrewPath:
 
     def setup_method(self) -> None:
         """Clear the brew detection cache before each test."""
-        from loadout.runner import _detect_brew_bin
+        from loadout.runner import detect_brew_bin
 
-        _detect_brew_bin.cache_clear()
+        detect_brew_bin.cache_clear()
 
     @patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}, clear=False)
     @patch(
@@ -278,6 +285,26 @@ class TestRunBrewPath:
         assert call_kwargs["env"] is not None
         path_entries = call_kwargs["env"]["PATH"].split(os.pathsep)
         assert path_entries[0] == "/usr/local/bin"
+
+    @patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}, clear=False)
+    @patch(
+        "loadout.runner.os.path.isfile",
+        side_effect=_home_brew_exists,
+    )
+    @patch("loadout.runner.subprocess.run")
+    def test_brew_on_path_home_homebrew(self, mock_run: MagicMock, _mock_exists: MagicMock) -> None:
+        """env is passed to subprocess.run with ~/.homebrew/bin prepended (devbox)."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["brew", "list"], returncode=0, stdout="", stderr=""
+        )
+
+        run(["brew", "list"])
+
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["env"] is not None
+        path_entries = call_kwargs["env"]["PATH"].split(os.pathsep)
+        expected = str(Path.home() / ".homebrew" / "bin")
+        assert path_entries[0] == expected
 
     @patch("loadout.runner.os.path.isfile", return_value=False)
     @patch("loadout.runner.subprocess.run")

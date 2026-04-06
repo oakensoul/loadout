@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import platform
+import shutil
 import textwrap
 from pathlib import Path
 
@@ -119,7 +120,7 @@ def generate_launch_agent_plist(config: LoadoutConfig) -> str:
 
     Returns the plist XML as a string.
     """
-    loadout_bin = "loadout"
+    loadout_bin = shutil.which("loadout") or "loadout"
     return textwrap.dedent(f"""\
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \

@@ -313,19 +313,30 @@ def test_generate_launch_agent_plist_valid_xml(tmp_path: Path) -> None:
 
 def test_generate_launch_agent_plist_contains_expected_paths(tmp_path: Path) -> None:
     config = LoadoutConfig(base_dir=tmp_path)
-    plist = generate_launch_agent_plist(config)
+    with patch("loadout.display.shutil.which", return_value="/usr/local/bin/loadout"):
+        plist = generate_launch_agent_plist(config)
 
     assert "com.oakensoul.loadout.display" in plist
-    assert "loadout" in plist
+    assert "/usr/local/bin/loadout" in plist
     assert "display" in plist
     assert str(config.dotfiles_dir / "logs" / "display.log") in plist
     assert str(config.dotfiles_dir / "logs" / "display.err") in plist
 
 
-def test_generate_plist_no_mode_argument(tmp_path: Path) -> None:
-    """ProgramArguments should only contain 'loadout' and 'display', not a mode."""
+def test_generate_launch_agent_plist_falls_back_to_bare_name(tmp_path: Path) -> None:
+    """When shutil.which cannot find loadout, fall back to bare 'loadout'."""
     config = LoadoutConfig(base_dir=tmp_path)
-    plist = generate_launch_agent_plist(config)
+    with patch("loadout.display.shutil.which", return_value=None):
+        plist = generate_launch_agent_plist(config)
+
+    assert "<string>loadout</string>" in plist
+
+
+def test_generate_plist_no_mode_argument(tmp_path: Path) -> None:
+    """ProgramArguments should contain the resolved loadout path and 'display', not a mode."""
+    config = LoadoutConfig(base_dir=tmp_path)
+    with patch("loadout.display.shutil.which", return_value="/usr/local/bin/loadout"):
+        plist = generate_launch_agent_plist(config)
 
     root = ET.fromstring(plist)
     # Find ProgramArguments array.
@@ -346,6 +357,6 @@ def test_generate_plist_no_mode_argument(tmp_path: Path) -> None:
     assert array_elem.tag == "array"
 
     strings = [s.text for s in array_elem.findall("string")]
-    assert strings == ["loadout", "display"]
+    assert strings == ["/usr/local/bin/loadout", "display"]
     assert "connected" not in strings
     assert "solo" not in strings
