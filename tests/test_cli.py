@@ -9,7 +9,53 @@ from unittest.mock import MagicMock, patch
 import click
 from click.testing import CliRunner
 
-from loadout.cli import cli
+from loadout.cli import _augment_path, cli
+
+
+class TestAugmentPath:
+    """Verify _augment_path prepends Homebrew bin to os.environ['PATH']."""
+
+    def setup_method(self) -> None:
+        from loadout.runner import detect_brew_bin
+
+        detect_brew_bin.cache_clear()
+
+    @patch("loadout.cli.detect_brew_bin", return_value="/opt/homebrew/bin")
+    def test_prepends_brew_bin(self, _mock: MagicMock) -> None:
+        import os
+
+        original = os.environ.get("PATH", "")
+        try:
+            os.environ["PATH"] = "/usr/bin:/bin"
+            _augment_path()
+            assert os.environ["PATH"].startswith("/opt/homebrew/bin:")
+        finally:
+            os.environ["PATH"] = original
+
+    @patch("loadout.cli.detect_brew_bin", return_value="/opt/homebrew/bin")
+    def test_no_duplicate(self, _mock: MagicMock) -> None:
+        import os
+
+        original = os.environ.get("PATH", "")
+        try:
+            os.environ["PATH"] = "/opt/homebrew/bin:/usr/bin:/bin"
+            _augment_path()
+            entries = os.environ["PATH"].split(":")
+            assert entries.count("/opt/homebrew/bin") == 1
+        finally:
+            os.environ["PATH"] = original
+
+    @patch("loadout.cli.detect_brew_bin", return_value=None)
+    def test_no_change_when_brew_absent(self, _mock: MagicMock) -> None:
+        import os
+
+        original = os.environ.get("PATH", "")
+        try:
+            os.environ["PATH"] = "/usr/bin:/bin"
+            _augment_path()
+            assert os.environ["PATH"] == "/usr/bin:/bin"
+        finally:
+            os.environ["PATH"] = original
 
 
 class TestCLIHelp:

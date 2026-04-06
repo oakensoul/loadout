@@ -4,13 +4,30 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from importlib.metadata import version
 
 import click
 
 from loadout.exceptions import LoadoutCommandError, LoadoutError
+from loadout.runner import detect_brew_bin
 from loadout.ui import error_panel, is_verbose, set_verbose
+
+
+def _augment_path() -> None:
+    """Prepend Homebrew bin to ``os.environ["PATH"]`` so ``shutil.which()`` works everywhere.
+
+    In devbox environments ``~/.homebrew/bin`` is not on the initial PATH,
+    causing ``shutil.which()`` guards to report binaries as missing even
+    though ``runner.run()`` would find them via its own PATH augmentation.
+    Calling this once at startup closes that gap for all downstream code.
+    """
+    brew_bin = detect_brew_bin()
+    if brew_bin is not None:
+        current = os.environ.get("PATH", "")
+        if brew_bin not in current.split(os.pathsep):
+            os.environ["PATH"] = brew_bin + os.pathsep + current
 
 
 def _get_version() -> str:
@@ -34,6 +51,7 @@ def cli(ctx: click.Context, dry_run: bool, verbose: bool) -> None:
     Orchestrates dotfile building, Homebrew, global package installs,
     and health checks across multiple user/org contexts.
     """
+    _augment_path()
     ctx.ensure_object(dict)
     ctx.obj["dry_run"] = dry_run
     set_verbose(verbose)
