@@ -108,7 +108,9 @@ def _build_settings_json(config: LoadoutConfig, *, dry_run: bool = False) -> Non
         verbose_line("merged settings.json from private base")
 
     for org in config.orgs:
-        org_settings = config.dotfiles_private_dir / "claude" / "orgs" / org / f"settings-{org}.json"
+        org_settings = (
+            config.dotfiles_private_dir / "claude" / "orgs" / org / f"settings-{org}.json"
+        )
         if org_settings.exists():
             try:
                 org_data: object = json.loads(org_settings.read_text(encoding="utf-8"))

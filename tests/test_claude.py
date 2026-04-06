@@ -108,7 +108,10 @@ class TestBuildSettingsJson:
 
     def test_public_base_only(self, tmp_path: Path) -> None:
         config = _make_config(tmp_path)
-        base = {"model": "opus", "statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}}
+        base = {
+            "model": "opus",
+            "statusLine": {"type": "command", "command": "~/.claude/statusline.sh"},
+        }
         _write(config.dotfiles_dir / "claude" / "base" / "settings.json", json.dumps(base))
 
         build_claude_config(config)
@@ -122,7 +125,10 @@ class TestBuildSettingsJson:
         base = {"model": "opus"}
         private = {"permissions": {"deny": ["Bash(sudo *)"]}}
         _write(config.dotfiles_dir / "claude" / "base" / "settings.json", json.dumps(base))
-        _write(config.dotfiles_private_dir / "claude" / "base" / "settings.json", json.dumps(private))
+        _write(
+            config.dotfiles_private_dir / "claude" / "base" / "settings.json",
+            json.dumps(private),
+        )
 
         build_claude_config(config)
 
@@ -154,7 +160,10 @@ class TestBuildSettingsJson:
     def test_private_base_only(self, tmp_path: Path) -> None:
         config = _make_config(tmp_path)
         private = {"model": "haiku"}
-        _write(config.dotfiles_private_dir / "claude" / "base" / "settings.json", json.dumps(private))
+        _write(
+            config.dotfiles_private_dir / "claude" / "base" / "settings.json",
+            json.dumps(private),
+        )
 
         build_claude_config(config)
 
@@ -202,7 +211,10 @@ class TestBuildClaudeConfigBehavior:
         config = _make_config(tmp_path, orgs=["acme"])
         base = {"mcpServers": {"s": {"command": "x"}}}
         _write(config.dotfiles_dir / "claude" / "base" / "mcp-shared.json", json.dumps(base))
-        _write(config.dotfiles_dir / "claude" / "base" / "settings.json", json.dumps({"model": "opus"}))
+        _write(
+            config.dotfiles_dir / "claude" / "base" / "settings.json",
+            json.dumps({"model": "opus"}),
+        )
         _write(config.dotfiles_dir / "claude" / "CLAUDE.md.template", "# Template")
         _write(config.dotfiles_dir / "claude" / "statusline.sh", "#!/bin/bash")
         _write(
