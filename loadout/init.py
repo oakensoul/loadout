@@ -253,7 +253,7 @@ def _register_ssh_key_with_github(
     """Register the SSH public key with GitHub via gh CLI."""
     hostname = socket.gethostname()
     # Extract org from key filename for a descriptive title
-    key_name = ssh_pub_path.stem  # e.g. "id_ed25519_oakensoul"
+    key_name = ssh_pub_path.stem  # e.g. "id_ed25519_yourname"
     runner.run(
         [
             "gh",
