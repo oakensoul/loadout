@@ -187,6 +187,11 @@ def _intel_brew_exists(path: str) -> bool:
     return path == "/usr/local/bin/brew"
 
 
+def _custom_and_system_brew_exists(path: str) -> bool:
+    """Simulate both a custom HOMEBREW_PREFIX and system brew installed."""
+    return path in ("/Users/dx-test/.homebrew/bin/brew", "/opt/homebrew/bin/brew")
+
+
 class TestRunBrewPath:
     """Test Homebrew PATH injection for subprocesses."""
 
@@ -288,3 +293,53 @@ class TestRunBrewPath:
 
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["env"] is None
+
+    @patch.dict(
+        os.environ,
+        {"PATH": "/usr/bin:/bin", "HOMEBREW_PREFIX": "/Users/dx-test/.homebrew"},
+        clear=False,
+    )
+    @patch(
+        "loadout.runner.os.path.isfile",
+        side_effect=_custom_and_system_brew_exists,
+    )
+    @patch("loadout.runner.subprocess.run")
+    def test_homebrew_prefix_takes_precedence(
+        self, mock_run: MagicMock, _mock_exists: MagicMock
+    ) -> None:
+        """HOMEBREW_PREFIX env var overrides system brew detection."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["brew", "update"], returncode=0, stdout="", stderr=""
+        )
+
+        run(["brew", "update"])
+
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["env"] is not None
+        path_entries = call_kwargs["env"]["PATH"].split(os.pathsep)
+        assert path_entries[0] == "/Users/dx-test/.homebrew/bin"
+
+    @patch.dict(
+        os.environ,
+        {"PATH": "/usr/bin:/bin", "HOMEBREW_PREFIX": "/nonexistent/.homebrew"},
+        clear=False,
+    )
+    @patch(
+        "loadout.runner.os.path.isfile",
+        side_effect=_apple_silicon_brew_exists,
+    )
+    @patch("loadout.runner.subprocess.run")
+    def test_homebrew_prefix_falls_back_when_brew_missing(
+        self, mock_run: MagicMock, _mock_exists: MagicMock
+    ) -> None:
+        """Falls back to system brew if HOMEBREW_PREFIX brew doesn't exist."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["brew", "list"], returncode=0, stdout="", stderr=""
+        )
+
+        run(["brew", "list"])
+
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["env"] is not None
+        path_entries = call_kwargs["env"]["PATH"].split(os.pathsep)
+        assert path_entries[0] == "/opt/homebrew/bin"

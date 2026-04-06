@@ -15,7 +15,16 @@ from loadout.ui import err_console, verbose_line
 
 @functools.lru_cache(maxsize=1)
 def _detect_brew_bin() -> str | None:
-    """Detect Homebrew bin directory (cached for process lifetime)."""
+    """Detect Homebrew bin directory (cached for process lifetime).
+
+    Respects ``HOMEBREW_PREFIX`` so per-user Homebrew installations
+    (e.g. devbox ``~/.homebrew``) are used when set.
+    """
+    prefix = os.environ.get("HOMEBREW_PREFIX")
+    if prefix:
+        candidate = os.path.join(prefix, "bin")
+        if os.path.isfile(os.path.join(candidate, "brew")):
+            return candidate
     if os.path.isfile("/opt/homebrew/bin/brew"):
         return "/opt/homebrew/bin"
     if os.path.isfile("/usr/local/bin/brew"):
