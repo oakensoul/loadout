@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from loadout.exceptions import LoadoutCommandError
-from loadout.runner import run
+from loadout.runner import brew_prefix_is_owned, run
 
 
 class TestRunNormal:
@@ -370,3 +370,56 @@ class TestRunBrewPath:
         assert call_kwargs["env"] is not None
         path_entries = call_kwargs["env"]["PATH"].split(os.pathsep)
         assert path_entries[0] == "/opt/homebrew/bin"
+
+
+class TestBrewPrefixIsOwned:
+    """Test brew_prefix_is_owned ownership check."""
+
+    def setup_method(self) -> None:
+        """Clear the brew detection cache before each test."""
+        from loadout.runner import detect_brew_bin
+
+        detect_brew_bin.cache_clear()
+
+    @patch("loadout.runner.os.path.isfile", return_value=False)
+    def test_returns_true_when_no_brew(self, _mock_exists: MagicMock) -> None:
+        """No brew detected — returns True so callers handle it separately."""
+        assert brew_prefix_is_owned() is True
+
+    @patch("loadout.runner.os.getuid", return_value=501)
+    @patch("loadout.runner.os.stat")
+    @patch(
+        "loadout.runner.os.path.isfile",
+        side_effect=_apple_silicon_brew_exists,
+    )
+    def test_returns_true_when_owned(
+        self, _mock_exists: MagicMock, mock_stat: MagicMock, _mock_uid: MagicMock
+    ) -> None:
+        """Returns True when prefix is owned by current user."""
+        mock_stat.return_value = MagicMock(st_uid=501)
+        assert brew_prefix_is_owned() is True
+
+    @patch("loadout.runner.os.getuid", return_value=501)
+    @patch("loadout.runner.os.stat")
+    @patch(
+        "loadout.runner.os.path.isfile",
+        side_effect=_apple_silicon_brew_exists,
+    )
+    def test_returns_false_when_not_owned(
+        self, _mock_exists: MagicMock, mock_stat: MagicMock, _mock_uid: MagicMock
+    ) -> None:
+        """Returns False when prefix is owned by a different user."""
+        mock_stat.return_value = MagicMock(st_uid=602)
+        assert brew_prefix_is_owned() is False
+
+    @patch("loadout.runner.os.getuid", return_value=501)
+    @patch("loadout.runner.os.stat", side_effect=OSError("Permission denied"))
+    @patch(
+        "loadout.runner.os.path.isfile",
+        side_effect=_apple_silicon_brew_exists,
+    )
+    def test_returns_false_on_stat_error(
+        self, _mock_exists: MagicMock, _mock_stat: MagicMock, _mock_uid: MagicMock
+    ) -> None:
+        """Returns False when os.stat raises OSError."""
+        assert brew_prefix_is_owned() is False

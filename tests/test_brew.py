@@ -175,3 +175,25 @@ class TestBrewBundle:
         brew_bundle(config, dry_run=False)
 
         mock_run.assert_not_called()  # type: ignore[union-attr]
+
+    @patch("loadout.brew.run")
+    @patch("loadout.brew.brew_prefix_is_owned", return_value=False)
+    @patch("loadout.brew.detect_brew_bin", return_value="/opt/homebrew/bin")
+    @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
+    def test_brew_bundle_skips_unowned_prefix(
+        self,
+        _mock_which: object,
+        _mock_detect: object,
+        _mock_owned: object,
+        mock_run: object,
+        tmp_path: Path,
+    ) -> None:
+        config = _make_config(tmp_path)
+
+        base = config.dotfiles_dir / "brewfiles" / "Brewfile.base"
+        base.parent.mkdir(parents=True)
+        base.write_text("brew 'git'\n", encoding="utf-8")
+
+        brew_bundle(config, dry_run=False)
+
+        mock_run.assert_not_called()  # type: ignore[union-attr]

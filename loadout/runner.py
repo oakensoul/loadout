@@ -36,6 +36,27 @@ def detect_brew_bin() -> str | None:
     return None
 
 
+def brew_prefix_is_owned() -> bool:
+    """Return True if the detected Homebrew prefix is owned by the current user.
+
+    Prevents devbox users (e.g. ``dx-*``) from accidentally running write
+    operations (``brew update``, ``brew bundle``, ``brew upgrade``) against
+    the parent user's Homebrew at ``/opt/homebrew``, which would take
+    ownership of shared directories and break the parent installation.
+
+    Returns ``True`` when no brew is detected — callers handle that case
+    separately.
+    """
+    brew_bin = detect_brew_bin()
+    if brew_bin is None:
+        return True
+    prefix = os.path.dirname(brew_bin)
+    try:
+        return os.stat(prefix).st_uid == os.getuid()
+    except OSError:
+        return False
+
+
 def run(
     cmd: list[str],
     *,

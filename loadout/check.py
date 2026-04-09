@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from enum import Enum
 
 from loadout import ui
 from loadout.config import LoadoutConfig
+from loadout.runner import brew_prefix_is_owned, detect_brew_bin
 
 
 class CheckStatus(Enum):
@@ -36,6 +38,33 @@ def check_homebrew() -> CheckResult:
     if shutil.which("brew"):
         return CheckResult(status=CheckStatus.OK, label="Homebrew", detail="brew found on PATH")
     return CheckResult(status=CheckStatus.ERROR, label="Homebrew", detail="brew not found on PATH")
+
+
+def check_homebrew_ownership() -> CheckResult:
+    """Verify that the detected Homebrew prefix is owned by the current user."""
+    brew_bin = detect_brew_bin()
+    if brew_bin is None:
+        return CheckResult(
+            status=CheckStatus.WARN,
+            label="Homebrew ownership",
+            detail="brew not found",
+        )
+    prefix = os.path.dirname(brew_bin)
+    if brew_prefix_is_owned():
+        return CheckResult(
+            status=CheckStatus.OK,
+            label="Homebrew ownership",
+            detail=f"{prefix} owned by current user",
+        )
+    try:
+        owner_uid = os.stat(prefix).st_uid
+    except OSError:
+        owner_uid = -1
+    return CheckResult(
+        status=CheckStatus.WARN,
+        label="Homebrew ownership",
+        detail=f"{prefix} owned by uid {owner_uid}, not current user (uid {os.getuid()})",
+    )
 
 
 def check_git() -> CheckResult:
@@ -317,6 +346,7 @@ def run_checks(config: LoadoutConfig) -> list[CheckResult]:
     """Run all health checks and return results."""
     results = [
         check_homebrew(),
+        check_homebrew_ownership(),
         check_git(),
         check_nvm_node(),
         check_pyenv_python(),

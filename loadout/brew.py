@@ -4,12 +4,13 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 from pathlib import Path
 
 from loadout.config import LoadoutConfig
-from loadout.runner import run
+from loadout.runner import brew_prefix_is_owned, detect_brew_bin, run
 from loadout.ui import status_line, verbose_line
 
 
@@ -57,6 +58,16 @@ def brew_bundle(config: LoadoutConfig, *, dry_run: bool = False) -> None:
     """
     if shutil.which("brew") is None:
         status_line("[yellow]![/yellow]", "Homebrew", "not found — skipping")
+        return
+
+    if not brew_prefix_is_owned():
+        brew_bin = detect_brew_bin()
+        prefix = os.path.dirname(brew_bin) if brew_bin else "unknown"
+        status_line(
+            "[yellow]![/yellow]",
+            "Homebrew",
+            f"{prefix} is owned by another user — skipping to avoid ownership conflicts",
+        )
         return
 
     fragments = _assemble_brewfile(config)
