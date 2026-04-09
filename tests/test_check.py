@@ -22,6 +22,7 @@ from loadout.check import (
     check_github_ssh,
     check_globals_scripts,
     check_homebrew,
+    check_homebrew_ownership,
     check_macos_scripts,
     check_nvm_node,
     check_onepassword,
@@ -49,6 +50,44 @@ class TestCheckHomebrew:
         result = check_homebrew()
         assert result.status == CheckStatus.ERROR
         assert "not found" in result.detail
+
+
+class TestCheckHomebrewOwnership:
+    """Tests for check_homebrew_ownership."""
+
+    def setup_method(self) -> None:
+        """Clear the brew detection cache before each test."""
+        from loadout.runner import detect_brew_bin
+
+        detect_brew_bin.cache_clear()
+
+    @patch("loadout.check.detect_brew_bin", return_value=None)
+    def test_no_brew(self, _mock_detect: object) -> None:
+        result = check_homebrew_ownership()
+        assert result.status == CheckStatus.WARN
+        assert "not found" in result.detail
+
+    @patch("loadout.check.brew_prefix_is_owned", return_value=True)
+    @patch("loadout.check.detect_brew_bin", return_value="/opt/homebrew/bin")
+    def test_owned(self, _mock_detect: object, _mock_owned: object) -> None:
+        result = check_homebrew_ownership()
+        assert result.status == CheckStatus.OK
+        assert "owned by current user" in result.detail
+
+    @patch("loadout.check.os.getuid", return_value=501)
+    @patch("loadout.check.os.stat")
+    @patch("loadout.check.brew_prefix_is_owned", return_value=False)
+    @patch("loadout.check.detect_brew_bin", return_value="/opt/homebrew/bin")
+    def test_not_owned(
+        self, _mock_detect: object, _mock_owned: object, mock_stat: object, _mock_uid: object
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        mock_stat_result = MagicMock(st_uid=602)  # type: ignore[attr-defined]
+        mock_stat.return_value = mock_stat_result  # type: ignore[union-attr]
+        result = check_homebrew_ownership()
+        assert result.status == CheckStatus.WARN
+        assert "uid 602" in result.detail
 
 
 class TestCheckGit:
@@ -372,8 +411,8 @@ class TestRunChecks:
             )
             results = run_checks(config)
         assert isinstance(results, list)
-        # 7 tool checks + brewfile fallback(1) + globals base(1) + macos(0) + claude config(1) = 10
-        assert len(results) == 10
+        # 8 tool checks + brewfile fallback(1) + globals base(1) + macos(0) + claude config(1) = 11
+        assert len(results) == 11
         assert all(isinstance(r, CheckResult) for r in results)
 
 

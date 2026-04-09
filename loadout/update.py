@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 
 from loadout.brew import brew_bundle
@@ -11,7 +12,7 @@ from loadout.build import build_dotfiles
 from loadout.claude import build_claude_config
 from loadout.config import LoadoutConfig
 from loadout.globals import install_globals
-from loadout.runner import run
+from loadout.runner import brew_prefix_is_owned, detect_brew_bin, run
 from loadout.secrets import load_ssh_key_config
 from loadout.ssh import install_ssh_config
 from loadout.ui import run_step, section_header, status_line
@@ -118,10 +119,19 @@ def run_upgrade(
     if skip_brew:
         status_line("[yellow]![/yellow]", "Brew upgrade", "skipped (--skip-brew)")
     elif shutil.which("brew") is not None:
-        run_step(
-            "Brew upgrade",
-            lambda: run(["brew", "upgrade"], dry_run=dry_run, interactive=True),
-            interactive=True,
-        )
+        if not brew_prefix_is_owned():
+            brew_bin = detect_brew_bin()
+            prefix = os.path.dirname(brew_bin) if brew_bin else "unknown"
+            status_line(
+                "[yellow]![/yellow]",
+                "Brew upgrade",
+                f"{prefix} is owned by another user — skipping to avoid ownership conflicts",
+            )
+        else:
+            run_step(
+                "Brew upgrade",
+                lambda: run(["brew", "upgrade"], dry_run=dry_run, interactive=True),
+                interactive=True,
+            )
     else:
         status_line("[yellow]![/yellow]", "brew", "not found — skipping brew upgrade")

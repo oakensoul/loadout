@@ -19,11 +19,13 @@ from loadout.update import run_update, run_upgrade
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
+@patch("loadout.brew.brew_prefix_is_owned", return_value=True)
 @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
 @patch("loadout.update.run")
 def test_run_update_full_flow(
     mock_update_run: MagicMock,
     mock_brew_which: MagicMock,
+    _mock_brew_owned: MagicMock,
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -64,11 +66,13 @@ def test_run_update_full_flow(
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
+@patch("loadout.brew.brew_prefix_is_owned", return_value=True)
 @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
 @patch("loadout.update.run")
 def test_run_update_dry_run(
     mock_update_run: MagicMock,
     mock_brew_which: MagicMock,
+    _mock_brew_owned: MagicMock,
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -100,11 +104,13 @@ def test_run_update_dry_run(
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
+@patch("loadout.brew.brew_prefix_is_owned", return_value=True)
 @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
 @patch("loadout.update.run")
 def test_run_update_missing_dotfiles_dir(
     mock_update_run: MagicMock,
     mock_brew_which: MagicMock,
+    _mock_brew_owned: MagicMock,
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -160,11 +166,13 @@ def test_run_update_no_brew(
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
+@patch("loadout.brew.brew_prefix_is_owned", return_value=True)
 @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
 @patch("loadout.update.run")
 def test_run_update_no_brewfile(
     mock_update_run: MagicMock,
     mock_brew_which: MagicMock,
+    _mock_brew_owned: MagicMock,
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -226,11 +234,13 @@ def test_run_update_skip_brew(
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
+@patch("loadout.brew.brew_prefix_is_owned", return_value=True)
 @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
 @patch("loadout.update.run")
 def test_run_update_skip_globals(
     mock_update_run: MagicMock,
     mock_brew_which: MagicMock,
+    _mock_brew_owned: MagicMock,
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -299,13 +309,17 @@ def test_run_update_skip_both(
 @patch("loadout.update.install_globals")
 @patch("loadout.update.build_dotfiles")
 @patch("loadout.brew.run")
+@patch("loadout.brew.brew_prefix_is_owned", return_value=True)
 @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
+@patch("loadout.update.brew_prefix_is_owned", return_value=True)
 @patch("loadout.update.shutil.which", return_value="/opt/homebrew/bin/brew")
 @patch("loadout.update.run")
 def test_run_upgrade_calls_update_then_upgrade(
     mock_update_run: MagicMock,
     mock_update_which: MagicMock,
+    _mock_update_owned: MagicMock,
     mock_brew_which: MagicMock,
+    _mock_brew_owned: MagicMock,
     mock_brew_run: MagicMock,
     mock_build: MagicMock,
     mock_globals: MagicMock,
@@ -392,6 +406,54 @@ def test_run_upgrade_skip_brew(
         c for c in mock_update_run.call_args_list if c.args[0] == ["brew", "upgrade"]
     ]
     assert len(brew_upgrade_calls) == 0
+
+    # Non-brew steps should still run
+    mock_build.assert_called_once()
+    mock_globals.assert_called_once()
+
+
+@patch("loadout.update.build_claude_config")
+@patch("loadout.update.install_globals")
+@patch("loadout.update.build_dotfiles")
+@patch("loadout.brew.run")
+@patch("loadout.brew.brew_prefix_is_owned", return_value=False)
+@patch("loadout.brew.detect_brew_bin", return_value="/opt/homebrew/bin")
+@patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
+@patch("loadout.update.brew_prefix_is_owned", return_value=False)
+@patch("loadout.update.detect_brew_bin", return_value="/opt/homebrew/bin")
+@patch("loadout.update.shutil.which", return_value="/opt/homebrew/bin/brew")
+@patch("loadout.update.run")
+def test_run_upgrade_skips_unowned_prefix(
+    mock_update_run: MagicMock,
+    _mock_update_which: MagicMock,
+    _mock_update_detect: MagicMock,
+    _mock_update_owned: MagicMock,
+    _mock_brew_which: MagicMock,
+    _mock_brew_detect: MagicMock,
+    _mock_brew_owned: MagicMock,
+    mock_brew_run: MagicMock,
+    mock_build: MagicMock,
+    mock_globals: MagicMock,
+    mock_claude: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Brew upgrade should be skipped when prefix is owned by another user."""
+    dotfiles = tmp_path / ".dotfiles"
+    dotfiles.mkdir()
+    private = tmp_path / ".dotfiles-private"
+    private.mkdir()
+
+    config = LoadoutConfig(base_dir=tmp_path)
+    run_upgrade(config)
+
+    # No brew upgrade call
+    brew_upgrade_calls = [
+        c for c in mock_update_run.call_args_list if c.args[0] == ["brew", "upgrade"]
+    ]
+    assert len(brew_upgrade_calls) == 0
+
+    # No brew bundle calls either (brew.py also guards)
+    mock_brew_run.assert_not_called()
 
     # Non-brew steps should still run
     mock_build.assert_called_once()
