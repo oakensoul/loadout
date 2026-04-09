@@ -87,10 +87,12 @@ class TestBrewBundle:
     """Tests for brew_bundle orchestration."""
 
     @patch("loadout.brew.run")
+    @patch("loadout.brew.brew_prefix_is_owned", return_value=True)
     @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
     def test_brew_bundle_assembles_and_runs(
         self,
         _mock_which: object,
+        _mock_owned: object,
         mock_run: object,
         tmp_path: Path,
     ) -> None:
@@ -122,10 +124,12 @@ class TestBrewBundle:
         assert not tmp_file.exists()
 
     @patch("loadout.brew.run")
+    @patch("loadout.brew.brew_prefix_is_owned", return_value=True)
     @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
     def test_brew_bundle_fallback_single_brewfile(
         self,
         _mock_which: object,
+        _mock_owned: object,
         mock_run: object,
         tmp_path: Path,
     ) -> None:
@@ -146,10 +150,12 @@ class TestBrewBundle:
         assert f"--file={brewfile}" in bundle_cmd
 
     @patch("loadout.brew.run")
+    @patch("loadout.brew.brew_prefix_is_owned", return_value=True)
     @patch("loadout.brew.shutil.which", return_value="/opt/homebrew/bin/brew")
     def test_brew_bundle_no_brewfile(
         self,
         _mock_which: object,
+        _mock_owned: object,
         mock_run: object,
         tmp_path: Path,
     ) -> None:
