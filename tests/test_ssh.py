@@ -54,10 +54,11 @@ class TestGenerateSshConfig:
         assert "IdentityAgent none" in config
 
     def test_includes_config_local(self, tmp_path: Path) -> None:
-        """Config includes config.local for local overrides."""
+        """Config includes config.local before Host * so local entries take precedence."""
         keys = [SshKeyConfig(org="test", filename="id_test", secret_path="")]
         config = generate_ssh_config(keys, tmp_path / ".ssh")
         assert "Include config.local" in config
+        assert config.index("Include config.local") < config.index("Host *")
 
     @patch("loadout.ssh.is_macos", return_value=True)
     def test_macos_includes_usekeychain(self, _mock: object, tmp_path: Path) -> None:
