@@ -46,12 +46,12 @@ class TestGenerateSshConfig:
         assert "HostName github.com" in config
 
     def test_includes_global_defaults(self, tmp_path: Path) -> None:
-        """Config includes AddKeysToAgent and IdentityAgent none."""
+        """Config includes AddKeysToAgent and does not disable the agent."""
         keys = [SshKeyConfig(org="test", filename="id_test", secret_path="")]
         config = generate_ssh_config(keys, tmp_path / ".ssh")
         assert "Host *" in config
         assert "AddKeysToAgent yes" in config
-        assert "IdentityAgent none" in config
+        assert "IdentityAgent none" not in config
 
     def test_includes_config_local(self, tmp_path: Path) -> None:
         """Config includes config.local before Host * so local entries take precedence."""

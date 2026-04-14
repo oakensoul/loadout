@@ -47,7 +47,6 @@ def generate_ssh_config(
     lines.append("    AddKeysToAgent yes")
     if is_macos():
         lines.append("    UseKeychain yes")
-    lines.append("    IdentityAgent none")
     lines.append("")
 
     # Per-key Host entries
